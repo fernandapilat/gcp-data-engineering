@@ -19,11 +19,11 @@ The goal is to demonstrate end-to-end data solutions, from ingestion and process
 
 ## Projects Overview
 
-| Domain | Project Name | Description | Key Technologies | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **Cloud** | **Secure API Gateway** | Protection and management of a Python API using Cloud Endpoints and ESP. | App Engine, Python 3.11, ESP | ✅ Completed |
-| **Cloud** | **Serverless Functions** | Implementation of containerized and scalable services for data processing. | Cloud Run, Docker | ✅ Completed |
-| **Cloud** | **Cloud Infrastructure** | Permission management and infrastructure as code (IaC) foundations. | IAM, Gcloud CLI, YAML | ✅ Completed |
+| Domain | Project Name | Description | Technologies & Tools |
+| :--- | :--- | :--- | :--- |
+| **Cloud** | **Secure API Gateway** | Protection and management of a Python API using Cloud Endpoints and ESP. | App Engine, Python 3.11, ESP |
+| **Cloud** | **Serverless Functions** | Implementation of containerized and scalable services for data processing. | Cloud Run, Docker |
+| **Cloud** | **Cloud Infrastructure** | Permission management and infrastructure as code (IaC) foundations. | IAM, Gcloud CLI, YAML |
 
 ---
 
