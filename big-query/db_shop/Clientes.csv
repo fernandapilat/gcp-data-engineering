@@ -1,0 +1,31 @@
+id_cliente,nome,email,localizacao,id_vendedor
+1,Ana Beatriz,ana_beatriz@email.com,Minas Gerais,1
+2,Bruno Martins,bruno_martins@email.com,Paraná,2
+3,Carla Dias,carla_dias@email.com,Paraná,2
+4,Diego Souza,diego_souza@email.com,Bahia,3
+5,Eliane Rocha,eliane_rocha@email.com,Paraná,2
+6,Fábio Lima,fábio_lima@email.com,Bahia,3
+7,Gisele Nunes,gisele_nunes@email.com,Paraná,2
+8,Hector Alves,hector_alves@email.com,Minas Gerais,1
+9,Isabela Moraes,isabela_moraes@email.com,Bahia,3
+10,João Vitor,joão_vitor@email.com,Bahia,3
+11,Karla Silva,karla_silva@email.com,Paraná,2
+12,Lucas Peixoto,lucas_peixoto@email.com,Paraná,2
+13,Mariana Costa,mariana_costa@email.com,Rio de Janeiro,4
+14,Nelson Barros,nelson_barros@email.com,Rio de Janeiro,4
+15,Olívia Gomes,olívia_gomes@email.com,Minas Gerais,1
+16,Paulo Ribeiro,paulo_ribeiro@email.com,Bahia,3
+17,Quênia Soares,quênia_soares@email.com,Minas Gerais,1
+18,Rafael Santos,rafael_santos@email.com,São Paulo,4
+19,Sandra Faria,sandra_faria@email.com,Bahia,3
+20,Tiago Pinto,tiago_pinto@email.com,Paraná,2
+21,Úrsula Freitas,úrsula_freitas@email.com,São Paulo,4
+22,Vítor Bento,vítor_bento@email.com,Rio de Janeiro,4
+23,Wagner Moura,wagner_moura@email.com,São Paulo,4
+24,Xênia Oliveira,xênia_oliveira@email.com,Paraná,2
+25,Yasmin Fonseca,yasmin_fonseca@email.com,Paraná,2
+26,Zeca Andrade,zeca_andrade@email.com,Bahia,3
+27,Vera Lúcia,vera_lúcia@email.com,Minas Gerais,1
+28,Horácio Queiroz,horácio_queiroz@email.com,Paraná,2
+29,Gilda Ramos,gilda_ramos@email.com,Paraná,2
+30,Ricardo Neves,ricardo_neves@email.com,Rio de Janeiro,4

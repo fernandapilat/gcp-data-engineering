@@ -1,0 +1,11 @@
+id_produto,nome,categoria,preco,id_materia
+1,Hidratante Corporal,Cuidados com a pele,51.40,1
+2,Shampoo Nutritivo,Cuidados com o cabelo,44.25,2
+3,Óleo Essencial Lavanda,Aromaterapia,18.30,3
+4,Condicionador Revitalizante,Cuidados com o cabelo,25.34,4
+5,Sabonete Líquido Erva Doce,Cuidados pessoais,17.50,5
+6,Loção Pós-Barba,Cuidados masculinos,22.46,6
+7,Creme para as Mãos,Cuidados com a pele,14.10,7
+8,Máscara Facial Detox,Cuidados com a pele,12.30,8
+9,Óleo Corporal Semente de Uva,Cuidados com a pele,21.50,9
+10,Desodorante Natural,Cuidados pessoais,31.20,10

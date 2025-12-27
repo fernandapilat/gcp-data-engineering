@@ -1,0 +1,11 @@
+id_materia,nome,origem,id_fornecedor
+1,Aloe Vera,Cultivo Orgânico,1
+2,Óleo de Argan,Importado,1
+3,Lavanda,Cultivo Orgânico,1
+4,Extrato de Camomila,Nacional,2
+5,Erva Doce,Cultivo Orgânico,5
+6,Mentol,Importado,3
+7,Karité,Importado,3
+8,Carvão Ativado,Nacional,3
+9,Semente de Uva,Nacional,4
+10,Extrato de Algodão,Cultivo Orgânico,4
