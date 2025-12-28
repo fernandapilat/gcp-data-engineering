@@ -73,3 +73,25 @@ ORDER BY
   year,
   total_revenue DESC;
 
+  -- Aggregating annual revenue into a nested array
+-- This structure consolidates multiple yearly records into a single row per product/client
+
+SELECT
+  produto, 
+  cliente,
+  -- Aggregates total revenue into an ordered array by year
+  ARRAY_AGG(total_revenue ORDER BY year) AS array_revenue
+FROM (
+  SELECT 
+    id_produto AS produto, 
+    id_cliente AS cliente,
+    EXTRACT(YEAR FROM data) AS year, 
+    -- Calculates annual revenue rounded to the nearest integer
+    ROUND(SUM(quantidade * preco), 0) AS total_revenue
+  FROM `curso-bigquery-481720.belleza_verde_vendas.vendas`
+  WHERE
+    id_produto = 1 AND id_cliente = 1
+  GROUP BY produto, cliente, year
+)
+GROUP BY produto, cliente;
+

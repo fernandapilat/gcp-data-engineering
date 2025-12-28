@@ -43,3 +43,8 @@
 - In BigQuery, aliases defined in the SELECT clause can often be referenced in GROUP BY, HAVING, and ORDER BY clauses.
 - Standard SQL Rule: Most SQL engines require the full expression in GROUP BY and HAVING, only allowing aliases in the ORDER BY clause.
 - Best Practice: While using aliases in BigQuery is convenient, being aware of the full expression requirement ensures compatibility with other SQL platforms.
+
+## Nested and Repeated Data (JSON/BigQuery)
+- **STRUCT (Curly Braces `{ }`):** Represents a single object or a logical grouping of fields. In BigQuery, it acts like a row within a cell.
+- **ARRAY (Square Brackets `[ ]`):** Represents an ordered list of elements. In BigQuery schema, this is defined as a REPEATED field.
+- **Relationship:** An Array of Structs `[{}, {}]` is the standard way to represent a "table within a table," allowing multiple related records to exist inside a single parent row.
