@@ -60,3 +60,8 @@
 - **Direct Access:** Allows retrieving specific data from a nested structure without needing to flatten (UNNEST) the entire table.
 - **Deep Navigation:** You can chain offsets to reach data inside nested arrays (e.g., `array[OFFSET(0)].sub_array[OFFSET(1)]`).
 - **Safety Tip:** Use `SAFE_OFFSET` to avoid query failures if the specified index does not exist in the array.
+
+### Why is BigQuery so fast? (The Big Three)
+1. **Partitioning:** Only scans relevant data segments (usually by date).
+2. **Clustering:** Sorts data within partitions for faster filtering.
+3. **Compression:** Reduces storage footprint, making data retrieval significantly faster.
