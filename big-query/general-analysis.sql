@@ -73,7 +73,7 @@ ORDER BY
   year,
   total_revenue DESC;
 
-  -- Aggregating annual revenue into a nested array
+-- Aggregating annual revenue into a nested array
 -- This structure consolidates multiple yearly records into a single row per product/client
 
 SELECT
@@ -95,3 +95,28 @@ FROM (
 )
 GROUP BY produto, cliente;
 
+-- Checking the number of elements in an array of structs
+-- Context: This is useful to count how many entities (like customers or products) 
+-- are nested within a single record.
+SELECT ARRAY_LENGTH(result) AS total_elements
+FROM (
+  SELECT [
+    -- Each STRUCT represents a logical grouping of a product, customer, and their revenue history
+    STRUCT (1 AS produto, 1 AS cliente, [3443.80, 1562.23, 776.86] AS array_revenue),
+    STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.41, 1331.76] AS array_revenue) 
+  ] AS result
+);
+
+-- Navigating Deeply Nested Structures using OFFSET
+SELECT 
+  result[OFFSET(0)].produto AS product_first_line,
+  result[OFFSET(0)].cliente AS customer_first_line,
+  result[OFFSET(1)].cliente AS customer_second_line,
+  result[OFFSET(0)].array_revenue[OFFSET(0)] AS revenue_21_first_line,
+  result[OFFSET(1)].array_revenue[OFFSET(2)] AS revenue_23_second_line
+FROM (SELECT [
+    STRUCT (1 AS produto, 1 AS cliente, [3443.7999999999993, 1562.2299999999998, 776.86]
+    AS array_revenue),
+    STRUCT (1 AS produto, 2 AS cliente, [3855.0000000000005, 2316.4099999999994, 1331.76]
+    AS array_revenue) 
+] AS result);

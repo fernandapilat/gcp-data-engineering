@@ -48,3 +48,15 @@
 - **STRUCT (Curly Braces `{ }`):** Represents a single object or a logical grouping of fields. In BigQuery, it acts like a row within a cell.
 - **ARRAY (Square Brackets `[ ]`):** Represents an ordered list of elements. In BigQuery schema, this is defined as a REPEATED field.
 - **Relationship:** An Array of Structs `[{}, {}]` is the standard way to represent a "table within a table," allowing multiple related records to exist inside a single parent row.
+
+## Why use STRUCT?
+- **Logical Grouping:** Combines related columns into a single field (e.g., grouping `street`, `city`, and `zip` into an `address` struct).
+- **Cleaner Schemas:** Reduces the number of top-level columns in massive tables, making them easier to navigate.
+- **Data Integrity:** Ensures that related values stay together. When you move or copy a STRUCT, all its internal fields go with it.
+- **Nested Power:** When combined with ARRAYS, it allows BigQuery to store hierarchical data (like a list of order items) inside a single row, avoiding heavy JOINs.
+
+## Accessing Array Elements (OFFSET)
+- **Zero-based indexing:** The first element is always accessed via `OFFSET(0)`.
+- **Direct Access:** Allows retrieving specific data from a nested structure without needing to flatten (UNNEST) the entire table.
+- **Deep Navigation:** You can chain offsets to reach data inside nested arrays (e.g., `array[OFFSET(0)].sub_array[OFFSET(1)]`).
+- **Safety Tip:** Use `SAFE_OFFSET` to avoid query failures if the specified index does not exist in the array.
