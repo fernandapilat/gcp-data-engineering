@@ -120,3 +120,4 @@ FROM (SELECT [
     STRUCT (1 AS produto, 2 AS cliente, [3855.0000000000005, 2316.4099999999994, 1331.76]
     AS array_revenue) 
 ] AS result);
+
