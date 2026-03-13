@@ -1,0 +1,46 @@
+
+ALTER TABLE curso-big-query-12339.belleza_verde_vendas.produtos
+ADD COLUMN materiasprimas ARRAY<STRING>;
+
+ALTER TABLE curso-big-query-12339.belleza_verde_vendas.produtos
+ADD COLUMN distribuicao ARRAY<FLOAT64>;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["1", "2"], distribuicao = [0.4,0.6]
+WHERE id_produto = 3;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["9", "8", "5"], distribuicao = [0.2,0.4,0.4]
+WHERE id_produto = 5;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["3", "8"], distribuicao = [0.7,0.3]
+WHERE id_produto = 10;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["4", "8", "7"], distribuicao = [0.2,0.2,0.6]
+WHERE id_produto = 1;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["1", "2", "4"], distribuicao = [0.1,0.7,0.2]
+WHERE id_produto = 7;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["10", "9", "1"], distribuicao = [0.2,0.2,0.6]
+WHERE id_produto = 8;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["9", "10"], distribuicao = [0.6,0.4]
+WHERE id_produto = 9;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["6", "7", "3", "4"], distribuicao = [0.1,0.2,0.5,0.2]
+WHERE id_produto = 6;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["1", "8", "4"], distribuicao = [0.3,0.4,0.3]
+WHERE id_produto = 2;
+
+UPDATE curso-big-query-12339.belleza_verde_vendas.produtos
+SET materiasprimas = ["7", "8"], distribuicao = [0.7,0.3]
+WHERE id_produto = 4;

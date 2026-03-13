@@ -1,21 +1,21 @@
 /* In the Belleza Verde database, we want to identify all customers located in Rio de Janeiro whose seller identifier is 4. */
 
 SELECT c.nome 
-FROM `curso-bigquery-481720.belleza_verde_vendas.clientes` AS c
+FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` AS c
 WHERE
   c.localizacao = 'Rio de Janeiro'
   AND c.id_vendedor = 4;
 
 -- Standard query without using subqueries
 SELECT id_venda, id_produto, id_cliente, data, (quantidade * preco) AS faturamento
-FROM `curso-bigquery-481720.belleza_verde_vendas.vendas`
+FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
 WHERE (quantidade * preco) >= 600
 LIMIT 10;
 
 -- Using a subquery
 SELECT * FROM (
     SELECT id_venda, id_produto, id_cliente, data, (quantidade * preco) AS faturamento
-    FROM `curso-bigquery-481720.belleza_verde_vendas.vendas`)
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`)
 WHERE faturamento >= 600
 LIMIT 10;
 
@@ -24,7 +24,7 @@ WITH vendas_faturamento AS
 (
     SELECT id_venda, id_produto, id_cliente, data,
     (quantidade * preco) AS faturamento
-    FROM `curso-bigquery-481720.belleza_verde_vendas.vendas`
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
 )
 SELECT id_venda, id_produto, id_cliente, data, faturamento
 FROM vendas_faturamento 
@@ -41,7 +41,7 @@ SELECT
   ROUND(AVG(quantidade * preco), 0) AS avg_revenue,
   ROUND(MIN(quantidade * preco), 0) AS min_revenue,
   COUNT(*) AS qty
-FROM curso-bigquery-481720.belleza_verde_vendas.vendas
+FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
 GROUP BY 
   id_produto, 
   id_cliente,
@@ -62,7 +62,7 @@ SELECT
   ROUND(AVG(quantidade * preco), 0) AS avg_revenue,
   ROUND(MIN(quantidade * preco), 0) AS min_revenue,
   COUNT(*) AS qty
-FROM `curso-bigquery-481720.belleza_verde_vendas.vendas`
+FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
 GROUP BY 
   id_produto, 
   id_cliente,
@@ -88,7 +88,7 @@ FROM (
     EXTRACT(YEAR FROM data) AS year, 
     -- Calculates annual revenue rounded to the nearest integer
     ROUND(SUM(quantidade * preco), 0) AS total_revenue
-  FROM `curso-bigquery-481720.belleza_verde_vendas.vendas`
+  FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
   WHERE
     id_produto = 1 AND id_cliente = 1
   GROUP BY produto, cliente, year
@@ -121,3 +121,70 @@ FROM (SELECT [
     AS array_revenue) 
 ] AS result);
 
+
+-- Flattening an array of structs into individual rows
+-- The UNNEST function expands the 'result' array, allowing us to access internal fields as columns
+WITH array_sct AS (
+  SELECT * FROM
+  UNNEST ([
+    STRUCT (1 AS produto, 1 AS cliente, [3443.79, 1562.22, 776.86] AS array_revenue),
+    STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.40, 1331.76] AS array_revenue)
+  ])
+)
+SELECT * FROM array_sct;
+
+-- Deep Flattening: Accessing values within nested arrays
+-- By using a comma followed by UNNEST, we create a cross join between the main row and each element of 'array_revenue'
+WITH array_sct AS (
+  SELECT * FROM
+  UNNEST ([
+    STRUCT (1 AS produto, 1 AS cliente, [3443.79, 1562.22, 776.86] AS array_revenue),
+    STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.40, 1331.76] AS array_revenue)
+  ])
+)
+SELECT
+  produto,
+  cliente,
+  revenue -- The alias for the unnested array element
+FROM array_sct, UNNEST(array_revenue) AS revenue;
+
+-- Understanding basic UNNEST syntax for simple arrays
+-- This command transforms a list of values (literal array) into a single column with multiple rows
+SELECT * FROM UNNEST([3855.00, 2316.40, 1331.76]);
+
+/* Advanced Analysis: Aggregating Unnested Data
+   Context: Once data is unnested, we can calculate statistical metrics (SUM, MAX, MIN, AVG) 
+   that were previously "trapped" inside the array structure. */
+WITH array_sct AS (
+  SELECT * FROM
+  UNNEST ([
+    STRUCT (1 AS produto, 1 AS cliente, [3443.79, 1562.22, 776.86] AS array_revenue),
+    STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.40, 1331.76] AS array_revenue)
+  ])
+)
+SELECT
+  produto,
+  cliente,
+  SUM(revenue) AS total_revenue,
+  MAX(revenue) AS max_revenue,
+  MIN(revenue) AS min_revenue,
+  AVG(revenue) AS avg_revenue,
+  COUNT(revenue) AS qty
+FROM array_sct, UNNEST(array_revenue) AS revenue
+GROUP BY 1, 2;
+
+-- DANGER: Multiple UNNESTs and the Cartesian Product effect
+-- When unnesting 'materiasprimas' and 'distribuicao' together, BigQuery 
+-- crosses every material with every percentage, duplicating rows.
+-- Example: 2 materials x 2 percentages = 4 rows (incorrect data duplication).
+SELECT 
+  id_produto,
+  nome,
+  categoria,
+  preco,
+  id_materia,
+  perc_dist
+FROM 
+  `curso-bigquery-490113.belleza_verde_vendas.produtos`, 
+  UNNEST(materiasprimas) AS id_materia,
+  UNNEST(distribuicao) AS perc_dist;
