@@ -1,106 +1,101 @@
 # BigQuery Study Notes
 
-## 1. First Query: NYC CitiBike Analysis
-- Accessed public datasets using the project ID: `bigquery-public-data`.
-- Implemented subqueries and CTEs to calculate gender distribution percentages.
-- **Key Takeaway:** Always filter for `NULL` or `unknown` values to avoid biased statistical analysis.
+## 1. What is BigQuery and How it Behaves
+* **Definition:** A serverless, highly scalable, and cost-effective multi-cloud data warehouse designed for business agility.
+* **OLAP vs OLTP:** BigQuery is an **OLAP** (Analytical) system optimized for massive reads and complex aggregations, unlike traditional **OLTP** databases (MySQL/PostgreSQL) made for individual row transactions.
+* **The "No-Lock" Philosophy:** It does not enforce Primary Keys (PK) or Foreign Keys (FK). You can declare them for documentation, but the engine won't block duplicates.
+* **Data Integrity:** Since there are no hard constraints, responsibility moves to the **ETL process** or the **application level**.
 
 ---
 
-## 2. Data Engineering Best Practices
-- **CTEs (WITH clause):** Much more readable and maintainable than nested subqueries.
-- **Formatting:** Using clear aliases (e.g., `AS qty`, `AS perc_gender`) makes the output user-friendly for stakeholders.
+## 2. Performance Pillar: Columnar vs. Row Storage
+* **Traditional DBs (Row-oriented):** Read the whole row even if you only need one column.
+* **BigQuery (Columnar-oriented):** Operates on "Vertical Slices."
+* **Theoretical Impact:** This is why `SELECT *` is discouraged; you are billed and performance is hit based on the specific columns (bytes) processed.
+
+* **Storage and Compute:** It separates processing power (Slots) from data storage (Colossus), allowing independent and automatic scaling.
 
 ---
 
-## 3. Create a Dataset
-1. In the **BigQuery Explorer** pane, click on the three dots (actions) next to your Project ID.
-2. Select **Create dataset**.
-3. **Dataset ID:** Enter a unique name (e.g., `trips_analysis`).
-4. **Location type:** Choose a region (e.g., `us-multi-region` if using public datasets).
-5. Click **Create Dataset**.
+## 3. Market Context and Key Advantages
+
+### 3.1 BigQuery vs. Competitors (The Big Three)
+
+| Feature | **Google BigQuery** | **AWS Redshift** | **Azure Synapse** |
+| :--- | :--- | :--- | :--- |
+| **Architecture** | **Serverless** (Total) | **Node-based** (Cluster) | **Hybrid** (Dedicated/Serverless) |
+| **Scaling** | Automatic & Instant | Manual or Auto-scaling groups | Manual or Semi-auto |
+| **Pricing Model** | Per Query (Bytes scanned) | Per Hour/Instance | Per Data Processed or DWU |
+
+### 3.2 Core Advantages (Professor's Insights)
+* **Serverless:** Zero infrastructure management. Focus on SQL, not servers.
+* **Standard SQL:** Uses ANSI 2011, reducing the learning curve for SQL professionals.
+* **Real-Time Analysis:** Excellent performance for streaming and high-speed data ingestion.
+* **Economic Impact:** TCO (Total Cost of Ownership) can be **50% to 80% lower** than traditional databases.
+* **Auto-Discounts:** Automatic 50% price drop for data stored over 90 days without modification.
+* **Integrated ML:** Native BigQuery ML for creating AI models using only SQL.
 
 ---
 
-## 4. Create a Table
-1. Click on the three dots next to your new Dataset and select **Create table**.
-2. **Source:** Choose where your data is coming from (e.g., `Upload`, `Google Cloud Storage`, or `Empty table`).
-3. **Destination:** Ensure the correct Project and Dataset are selected.
-4. **Table name:** Enter your table name (e.g., `gender_summary`).
-5. **Schema:** - Toggle **Edit as text** to paste a JSON schema, or 
-   - Click **Add field** to define columns manually, or
-   - Use **Auto detect** for CSV/JSON files.
-6. Click **Create Table**.
+## 4. SQL Query Architecture & Data Structures
+* **Query Comparison:**
+    * *Standard Query:* Direct but rigid.
+    * *Subqueries:* Useful for immediate calculations but can become a "black box."
+    * *CTEs:* Virtual temporary tables that make code "self-explanatory."
+* **Theory of Nested and Repeated Data (Denormalization):**
+    * **STRUCT `{ }` (Record):** A "Folder" that groups related fields (Atomic data).
+    * **ARRAY `[ ]` (Repeated):** A "Stack" of values within a single row (One-to-many relationship).
+
+| Feature | STRUCT (Record) | ARRAY (Repeated) |
+| :--- | :--- | :--- |
+| **JSON Symbol** | `{ }` (Curly Braces) | `[ ]` (Square Brackets) |
+| **BigQuery Schema** | `RECORD` | `REPEATED` |
+| **Analogy** | A "Folder" within a cell | A "Stack" of values |
 
 ---
 
-## 5. SQL Standards
-- BigQuery uses GoogleSQL (formerly known as Standard SQL) as its default query language.
-- It is compliant with the ISO SQL: 2011 standard.
+## 5. The Mechanics of UNNEST and Joins
+
+### 5.1 UNNEST: The Bridge
+* **Definition:** `UNNEST` is a function that takes an `ARRAY` and turns it into a set of rows. 
+* **Conceptual Shift:** Think of it as "unpacking" a suitcase. Each item inside the array becomes its own row in the result set, allowing you to perform standard SQL operations (like `WHERE` or `GROUP BY`) on nested elements.
+
+
+### 5.2 The Cross Join Effect
+* **Behavior:** When you use `CROSS JOIN UNNEST`, BigQuery multiplies the "Parent" row by every "Child" element inside the array.
+* **Caution:** This increases the row count of your result set significantly (Exploding the data).
+
+### 5.3 Data Type Compatibility (Joining)
+* **Strict Typing:** BigQuery requires exact type matches for Joins.
+* **Casting:** Use `CAST(expression AS type)` to fix "Type Mismatch" errors.
+    * *Example:* `ON CAST(rp.id_materia AS INT64) = mp.id_materia`
 
 ---
 
-## 6. Performance and Best Practices
-- **Standard Query:** Best for very simple tasks but lacks code reuse.
-- **Subqueries:** Useful for scoping but harder to read when nested.
-- **CTEs:** Preferred method for complex logic; improves maintainability and readability without sacrificing BigQuery performance.
+## 6. Correlation Theory: Avoiding the Cartesian Product
+* **The Problem:** Unnesting two independent arrays simultaneously causes incorrect combinations (**N x M rows**) because the "positional context" is lost.
+* **The Solution (Indexing):** Re-introduce order through positional logic using `OFFSET` or `ROW_NUMBER()` to ensure Array A pairs correctly with Array B.
 
----
+### Practical Example (Step-by-Step)
+```sql
+-- Pairing Materials with their specific Distribution percentages
+WITH index_produtos AS (
+  SELECT id_produto, nome,
+    ARRAY(SELECT AS STRUCT mp, ROW_NUMBER() OVER() AS idx FROM UNNEST(materiasprimas) AS mp) AS mp_idx,
+    ARRAY(SELECT AS STRUCT ds, ROW_NUMBER() OVER() AS idx FROM UNNEST(distribuicao) AS ds) AS ds_idx
+  FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`
+)
+SELECT p.nome, m.mp AS id_materia, d.ds AS pct_distribuicao
+FROM index_produtos p
+CROSS JOIN UNNEST(p.mp_idx) AS m
+CROSS JOIN UNNEST(p.ds_idx) AS d
+ON m.idx = d.idx; -- Crucial correlation to avoid Cartesian Product
+```
 
-## 7. Grouping and Aliases
-- **GROUP BY:** Does not support aliases in many standard SQL engines; the full expression or function (e.g., `EXTRACT`) must be used.
-- **ORDER BY:** Can use either the alias or the full expression, but using aliases is often cleaner for final output sorting.
+## 7. Performance Pillar: Columnar vs. Row Storage
 
----
-
-## 8. Alias Visibility in BigQuery
-- In BigQuery, aliases defined in the SELECT clause can often be referenced in GROUP BY, HAVING, and ORDER BY clauses.
-- Standard SQL Rule: Most SQL engines require the full expression in GROUP BY and HAVING, only allowing aliases in the ORDER BY clause.
-- Best Practice: While using aliases in BigQuery is convenient, being aware of the full expression requirement ensures compatibility with other SQL platforms.
-
----
-
-## 9. Nested and Repeated Data (JSON/BigQuery)
-- **STRUCT (Curly Braces `{ }`):** Represents a single object or a logical grouping of fields. In BigQuery, it acts like a row within a cell.
-- **ARRAY (Square Brackets `[ ]`):** Represents an ordered list of elements. In BigQuery schema, this is defined as a REPEATED field.
-- **Relationship:** An Array of Structs `[{}, {}]` is the standard way to represent a "table within a table," allowing multiple related records to exist inside a single parent row.
-
----
-
-## 10. Why use STRUCT?
-- **Logical Grouping:** Combines related columns into a single field (e.g., grouping `street`, `city`, and `zip` into an `address` struct).
-- **Cleaner Schemas:** Reduces the number of top-level columns in massive tables, making them easier to navigate.
-- **Data Integrity:** Ensures that related values stay together. When you move or copy a STRUCT, all its internal fields go with it.
-- **Nested Power:** When combined with ARRAYS, it allows BigQuery to store hierarchical data (like a list of order items) inside a single row, avoiding heavy JOINs.
-
----
-
-## 11. Accessing Array Elements (OFFSET)
-- **Zero-based indexing:** The first element is always accessed via `OFFSET(0)`.
-- **Direct Access:** Allows retrieving specific data from a nested structure without needing to flatten (UNNEST) the entire table.
-- **Deep Navigation:** You can chain offsets to reach data inside nested arrays (e.g., `array[OFFSET(0)].sub_array[OFFSET(1)]`).
-- **Safety Tip:** Use `SAFE_OFFSET` to avoid query failures if the specified index does not exist in the array.
-
----
-
-## 12. UNNEST: Flattening Data for Analysis
-- **The Purpose:** Arrays are great for storage, but standard SQL functions (like `SUM` or `AVG`) cannot look inside a list. `UNNEST` "explodes" an array into individual rows.
-- **Cross Join Logic:** When you use `FROM table, UNNEST(array_column)`, BigQuery performs a cross join, repeating the parent row information for every element inside the array.
-
-- **Data Manipulation:** `UNNEST` is essential for filtering specific values hidden inside arrays (e.g., finding customers who bought a specific item within an order list).
-- **Transformation Flow:** Typically, the workflow is: **Unnest** the data -> **Manipulate/Filter** -> **Re-aggregate** (using `ARRAY_AGG` if needed).
-
-### ⚠️ Important: The Cartesian Product Trap
-- **The Problem:** If you `UNNEST` two or more separate arrays in the same `SELECT` statement, BigQuery combines every element of the first array with every element of the second.
-- **Visualizing the Issue:** - Array A: `[Matéria 1, Matéria 2]` (2 items)
-    - Array B: `[0.4, 0.6]` (2 items)
-    - **Result:** 4 rows instead of 2. BigQuery crosses everything (`Matéria 1` with `0.4` AND `0.6`).
-- **The Impact:** This creates data duplication. If you try to sum the percentages, the result will be incorrect (e.g., 200% instead of 100%).
-- **Current Status:** Understanding that multiple UNNESTs require a "pairing" logic (like matching by index) to avoid incorrect statistical analysis.
-
----
-
-## 13. Why is BigQuery so fast? (The Big Three)
-1. **Partitioning:** Only scans relevant data segments (usually by date).
-2. **Clustering:** Sorts data within partitions for faster filtering.
-3. **Columnar Storage:** Unlike traditional databases that read entire rows, BigQuery only reads the specific columns requested in the query.
+### 7.1 Strategic Optimization
+- **Early Casting:** Convert data types inside CTEs to ensure JOINs compare native types, avoiding per-row function overhead.
+- **Native Unnesting:** Use `UNNEST(...) WITH OFFSET` instead of manual subqueries to pair arrays efficiently.
+- **Predicate Pushdown:** Apply `WHERE` filters in the earliest possible CTE to reduce the volume of data flowing through the pipeline.
+- **Column Pruning:** Avoid `SELECT *`. Only call specific columns to minimize the bytes scanned by the columnar engine.

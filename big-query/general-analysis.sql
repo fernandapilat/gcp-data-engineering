@@ -1,37 +1,52 @@
-/* In the Belleza Verde database, we want to identify all customers located in Rio de Janeiro whose seller identifier is 4. */
+/*******************************************************************************
+  BELLEZA VERDE - SALES & PRODUCT ANALYSIS
+  Course: BigQuery Mastery
+  Structure: 
+    1. Basic Queries & Filtering
+    2. Aggregations & Grouping
+    3. Arrays & Structs (Nested Data)
+    4. Advanced Flattening & Correlation
+*******************************************************************************/
 
+--------------------------------------------------------------------------------
+-- SECTION 1: BASIC QUERIES & FILTERING
+--------------------------------------------------------------------------------
+
+-- Filtering customers by location and seller identifier
 SELECT c.nome 
 FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` AS c
-WHERE
-  c.localizacao = 'Rio de Janeiro'
+WHERE c.localizacao = 'Rio de Janeiro'
   AND c.id_vendedor = 4;
 
--- Standard query without using subqueries
+-- Filtering sales by calculated revenue (Standard Query)
 SELECT id_venda, id_produto, id_cliente, data, (quantidade * preco) AS faturamento
 FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
 WHERE (quantidade * preco) >= 600
 LIMIT 10;
 
--- Using a subquery
+-- Filtering using a Subquery for alias reuse
 SELECT * FROM (
     SELECT id_venda, id_produto, id_cliente, data, (quantidade * preco) AS faturamento
     FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`)
 WHERE faturamento >= 600
 LIMIT 10;
 
--- Using a CTE (Common Table Expression)
-WITH vendas_faturamento AS
-(
+-- Filtering using a CTE (Common Table Expression) - Recommended for readability
+WITH vendas_faturamento AS (
     SELECT id_venda, id_produto, id_cliente, data,
     (quantidade * preco) AS faturamento
     FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
 )
-SELECT id_venda, id_produto, id_cliente, data, faturamento
+SELECT *
 FROM vendas_faturamento 
 WHERE faturamento >= 600 
 LIMIT 10;
 
--- Grouping data with GROUP BY
+--------------------------------------------------------------------------------
+-- SECTION 2: AGGREGATIONS & GROUPING
+--------------------------------------------------------------------------------
+
+-- Statistical summary per product, customer, and year
 SELECT 
   id_produto AS produto, 
   id_cliente AS cliente,
@@ -42,99 +57,57 @@ SELECT
   ROUND(MIN(quantidade * preco), 0) AS min_revenue,
   COUNT(*) AS qty
 FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
-GROUP BY 
-  id_produto, 
-  id_cliente,
-  EXTRACT (YEAR FROM data)
-ORDER BY 
-  EXTRACT (YEAR FROM data),
-  ROUND(SUM(quantidade * preco), 0) DESC;
+GROUP BY 1, 2, 3 -- Using position-based grouping
+ORDER BY 3, 4 DESC;
 
--- Using HAVING to filter after grouping
--- Note: BigQuery allows using aliases (like 'year') in GROUP BY and HAVING clauses, 
--- but this behavior may vary in other SQL dialects.
+-- Filtering grouped data using HAVING
 SELECT 
   id_produto AS produto, 
   id_cliente AS cliente,
   EXTRACT(YEAR FROM data) AS year, 
-  ROUND(SUM(quantidade * preco), 0) AS total_revenue,
-  ROUND(MAX(quantidade * preco), 0) AS max_revenue,
-  ROUND(AVG(quantidade * preco), 0) AS avg_revenue,
-  ROUND(MIN(quantidade * preco), 0) AS min_revenue,
-  COUNT(*) AS qty
+  ROUND(SUM(quantidade * preco), 0) AS total_revenue
 FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
-GROUP BY 
-  id_produto, 
-  id_cliente,
-  year 
-HAVING
-  SUM(quantidade * preco) >= 3000 AND MIN(quantidade * preco) <= 60
-ORDER BY 
-  year,
-  total_revenue DESC;
+GROUP BY 1, 2, 3
+HAVING total_revenue >= 3000 
+ORDER BY year, total_revenue DESC;
 
--- Aggregating annual revenue into a nested array
--- This structure consolidates multiple yearly records into a single row per product/client
+--------------------------------------------------------------------------------
+-- SECTION 3: ARRAYS & STRUCTS (NESTED DATA)
+--------------------------------------------------------------------------------
 
+-- Consolidating yearly revenue into an ordered Array
 SELECT
   produto, 
   cliente,
-  -- Aggregates total revenue into an ordered array by year
   ARRAY_AGG(total_revenue ORDER BY year) AS array_revenue
 FROM (
   SELECT 
     id_produto AS produto, 
     id_cliente AS cliente,
     EXTRACT(YEAR FROM data) AS year, 
-    -- Calculates annual revenue rounded to the nearest integer
     ROUND(SUM(quantidade * preco), 0) AS total_revenue
   FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
-  WHERE
-    id_produto = 1 AND id_cliente = 1
-  GROUP BY produto, cliente, year
+  WHERE id_produto = 1 AND id_cliente = 1
+  GROUP BY 1, 2, 3
 )
-GROUP BY produto, cliente;
+GROUP BY 1, 2;
 
--- Checking the number of elements in an array of structs
--- Context: This is useful to count how many entities (like customers or products) 
--- are nested within a single record.
-SELECT ARRAY_LENGTH(result) AS total_elements
+-- Navigation in nested structures using OFFSET (Zero-based indexing)
+SELECT 
+  result[OFFSET(0)].produto AS first_product,
+  result[OFFSET(0)].array_revenue[OFFSET(0)] AS first_revenue_entry
 FROM (
   SELECT [
-    -- Each STRUCT represents a logical grouping of a product, customer, and their revenue history
-    STRUCT (1 AS produto, 1 AS cliente, [3443.80, 1562.23, 776.86] AS array_revenue),
-    STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.41, 1331.76] AS array_revenue) 
+    STRUCT (1 AS produto, 1 AS cliente, [3443.80, 1562.23] AS array_revenue),
+    STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.41] AS array_revenue) 
   ] AS result
 );
 
--- Navigating Deeply Nested Structures using OFFSET
-SELECT 
-  result[OFFSET(0)].produto AS product_first_line,
-  result[OFFSET(0)].cliente AS customer_first_line,
-  result[OFFSET(1)].cliente AS customer_second_line,
-  result[OFFSET(0)].array_revenue[OFFSET(0)] AS revenue_21_first_line,
-  result[OFFSET(1)].array_revenue[OFFSET(2)] AS revenue_23_second_line
-FROM (SELECT [
-    STRUCT (1 AS produto, 1 AS cliente, [3443.7999999999993, 1562.2299999999998, 776.86]
-    AS array_revenue),
-    STRUCT (1 AS produto, 2 AS cliente, [3855.0000000000005, 2316.4099999999994, 1331.76]
-    AS array_revenue) 
-] AS result);
-
-
--- Flattening an array of structs into individual rows
--- The UNNEST function expands the 'result' array, allowing us to access internal fields as columns
-WITH array_sct AS (
-  SELECT * FROM
-  UNNEST ([
-    STRUCT (1 AS produto, 1 AS cliente, [3443.79, 1562.22, 776.86] AS array_revenue),
-    STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.40, 1331.76] AS array_revenue)
-  ])
-)
-SELECT * FROM array_sct;
+--------------------------------------------------------------------------------
+-- SECTION 4: FLATTENING (UNNESTING) DATA
+--------------------------------------------------------------------------------
 
 -- Deep Flattening: Accessing values within nested arrays
--- By using a comma followed by UNNEST, we create a cross join between the main row and each element of 'array_revenue'
 WITH array_sct AS (
   SELECT * FROM
   UNNEST ([
@@ -142,19 +115,10 @@ WITH array_sct AS (
     STRUCT (1 AS produto, 2 AS cliente, [3855.00, 2316.40, 1331.76] AS array_revenue)
   ])
 )
-SELECT
-  produto,
-  cliente,
-  revenue -- The alias for the unnested array element
+SELECT produto, cliente, revenue
 FROM array_sct, UNNEST(array_revenue) AS revenue;
 
--- Understanding basic UNNEST syntax for simple arrays
--- This command transforms a list of values (literal array) into a single column with multiple rows
-SELECT * FROM UNNEST([3855.00, 2316.40, 1331.76]);
-
-/* Advanced Analysis: Aggregating Unnested Data
-   Context: Once data is unnested, we can calculate statistical metrics (SUM, MAX, MIN, AVG) 
-   that were previously "trapped" inside the array structure. */
+-- Aggregating statistics from unnested arrays
 WITH array_sct AS (
   SELECT * FROM
   UNNEST ([
@@ -163,28 +127,107 @@ WITH array_sct AS (
   ])
 )
 SELECT
-  produto,
-  cliente,
+  produto, cliente,
   SUM(revenue) AS total_revenue,
-  MAX(revenue) AS max_revenue,
-  MIN(revenue) AS min_revenue,
-  AVG(revenue) AS avg_revenue,
-  COUNT(revenue) AS qty
+  AVG(revenue) AS avg_revenue
 FROM array_sct, UNNEST(array_revenue) AS revenue
 GROUP BY 1, 2;
 
--- DANGER: Multiple UNNESTs and the Cartesian Product effect
--- When unnesting 'materiasprimas' and 'distribuicao' together, BigQuery 
--- crosses every material with every percentage, duplicating rows.
--- Example: 2 materials x 2 percentages = 4 rows (incorrect data duplication).
+--------------------------------------------------------------------------------
+-- SECTION 5: ADVANCED CORRELATION (HANDLING MULTIPLE ARRAYS)
+--------------------------------------------------------------------------------
+
+/* WARNING: CARTESIAN PRODUCT RISK
+   Unnesting two arrays simultaneously without correlation creates 
+   incorrect combinations (N x M rows). 
+*/
+SELECT id_produto, id_materia, perc_dist
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`, 
+UNNEST(materiasprimas) AS id_materia,
+UNNEST(distribuicao) AS perc_dist;
+
+-- SOLUTION A: THE "ROOT" METHOD (Using ROW_NUMBER and CTE)
+-- Useful for understanding manual indexing and join logic.
+WITH indexed_data AS (
+  SELECT 
+    id_produto, nome,
+    ARRAY(SELECT AS STRUCT val, ROW_NUMBER() OVER() AS idx FROM UNNEST(materiasprimas) AS val) AS m_idx,
+    ARRAY(SELECT AS STRUCT val, ROW_NUMBER() OVER() AS idx FROM UNNEST(distribuicao) AS val) AS d_idx
+  FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`
+)
 SELECT 
-  id_produto,
-  nome,
-  categoria,
-  preco,
+    ip.id_produto, 
+    m.val AS id_materia, 
+    d.val AS distribuicao_materia
+FROM indexed_data ip
+CROSS JOIN UNNEST(ip.m_idx) AS m
+CROSS JOIN UNNEST(ip.d_idx) AS d
+ON m.idx = d.idx;
+
+-- SOLUTION B: THE MODERN METHOD (Using WITH OFFSET)
+-- Best practice for BigQuery: cleaner and more efficient.
+SELECT 
+  id_produto, 
   id_materia,
-  perc_dist
+  perc_dist AS distribuicao_materia
 FROM 
-  `curso-bigquery-490113.belleza_verde_vendas.produtos`, 
-  UNNEST(materiasprimas) AS id_materia,
-  UNNEST(distribuicao) AS perc_dist;
+  `curso-bigquery-490113.belleza_verde_vendas.produtos`,
+  UNNEST(materiasprimas) AS id_materia WITH OFFSET AS pos1,
+  UNNEST(distribuicao) AS perc_dist WITH OFFSET AS pos2
+WHERE pos1 = pos2;
+
+/*******************************************************************************
+  SECTION 6: COMPLEX AGGREGATION & DATA TYPE ALIGNMENT
+  Objective: Correlate multiple arrays, flatten them using index-pairing to 
+             avoid Cartesian products, and perform an INNER JOIN with type casting.
+*******************************************************************************/
+
+-- STEP 1: Generate manual indexes for both arrays to ensure 1:1 correlation
+WITH index_produtos AS (
+  SELECT 
+    id_produto, 
+    nome, 
+    categoria, 
+    preco,
+    -- Creates a helper STRUCT with the value and its position (idx)
+    ARRAY(
+      SELECT AS STRUCT mp, ROW_NUMBER() OVER() AS idx 
+      FROM UNNEST(materiasprimas) AS mp
+    ) AS materiaprima_index,
+    -- Creates a matching helper STRUCT for distribution percentages
+    ARRAY(
+      SELECT AS STRUCT ds, ROW_NUMBER() OVER() AS idx 
+      FROM UNNEST(distribuicao) AS ds
+    ) AS distribuicao_index
+  FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`
+),
+
+-- STEP 2: Flatten arrays and pair them by their index (Avoiding Cartesian Product)
+resultado_produto AS (
+  SELECT 
+    ip.id_produto, 
+    ip.nome, 
+    ip.categoria, 
+    ip.preco, 
+    mpUN.mp AS id_materia, 
+    dsUN.ds AS distribuicao_materia
+  FROM index_produtos ip
+  CROSS JOIN UNNEST(ip.materiaprima_index) AS mpUN
+  CROSS JOIN UNNEST(ip.distribuicao_index) AS dsUN
+  -- Crucial: Join condition ensures Material[1] pairs with Distribution[1]
+  ON mpUN.idx = dsUN.idx
+)
+
+-- STEP 3: Final Join with Raw Materials table using Type Casting
+SELECT 
+  rp.id_produto, 
+  rp.nome AS product_name, 
+  rp.categoria, 
+  rp.preco, 
+  rp.id_materia,
+  mp.nome AS material_name,
+  rp.distribuicao_materia
+FROM resultado_produto rp 
+INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.materiasprimas` AS mp
+  -- Resolving Type Mismatch: Casting id_materia from STRING/FLOAT to INT64
+  ON CAST(rp.id_materia AS INT64) = mp.id_materia;
