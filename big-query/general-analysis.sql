@@ -231,3 +231,107 @@ FROM resultado_produto rp
 INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.materiasprimas` AS mp
   -- Resolving Type Mismatch: Casting id_materia from STRING/FLOAT to INT64
   ON CAST(rp.id_materia AS INT64) = mp.id_materia;
+
+  --------------------------------------------------------------------------------
+-- SECTION 7: BUSINESS INTELLIGENCE & GOAL TRACKING
+--------------------------------------------------------------------------------
+
+-- Query 7.1: Yearly Sales Summary by Seller and Product
+WITH sales_by_seller_per_year AS (
+    SELECT
+      EXTRACT(YEAR FROM v.data) AS year,
+      vd.nome AS seller_name,
+      p.nome AS product_name,
+      SUM(v.quantidade) AS qty
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas` AS v
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p
+      ON v.id_produto = p.id_produto
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.clientes` AS c
+      ON v.id_cliente = c.id_cliente
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.vendedores` AS vd
+      ON c.id_vendedor = vd.id_vendedor
+    GROUP BY ALL
+    ORDER BY year
+)
+SELECT * FROM sales_by_seller_per_year;
+
+-- Query 7.2: Target Tracking and Performance Ranking
+-- Correlates sales with a 'metas' table to calculate attainment % and annual rank
+WITH sales_by_seller_per_year AS (
+    SELECT
+      EXTRACT(YEAR FROM v.data) AS year,
+      vd.id_vendedor,
+      vd.nome AS seller_name,
+      p.id_produto,
+      p.nome AS product_name,
+      SUM(v.quantidade) AS qty
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas` AS v
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p
+      ON v.id_produto = p.id_produto
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.clientes` AS c
+      ON v.id_cliente = c.id_cliente
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.vendedores` AS vd
+      ON c.id_vendedor = vd.id_vendedor
+    GROUP BY ALL
+)
+SELECT
+  s.year,
+  s.seller_name,
+  s.product_name,
+  s.qty,
+  mt.quantidade_meta AS target_qty,
+  ROUND(((s.qty - mt.quantidade_meta) / mt.quantidade_meta) * 100, 2) || '%' AS target_perc,
+  CASE
+    WHEN s.qty >= mt.quantidade_meta THEN "Above"
+    ELSE "Below"
+  END AS performance_seller,
+  RANK() OVER (PARTITION BY s.year ORDER BY s.qty DESC) AS rank_seller
+FROM sales_by_seller_per_year AS s
+LEFT JOIN `curso-bigquery-490113.belleza_verde_vendas.metas` AS mt
+  ON s.id_vendedor = mt.id_vendedor
+  AND s.id_produto = mt.id_produto
+  AND s.year = mt.ano;
+
+--------------------------------------------------------------------------------
+-- SECTION 8: REVENUE & CUSTOMER RANKING
+--------------------------------------------------------------------------------
+
+-- Query 8.1: Customer Invoicing Analysis (2021)
+-- Calculates total revenue per customer based on quantity * price
+WITH invoicing AS (
+    SELECT
+      EXTRACT(YEAR FROM v.data) AS year,
+      c.nome AS customer,
+      ROUND(SUM(v.quantidade * v.preco), 2) AS total_revenue
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas` AS v
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p
+      ON v.id_produto = p.id_produto
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.clientes` AS c
+      ON v.id_cliente = c.id_cliente
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.vendedores` AS vd
+      ON c.id_vendedor = vd.id_vendedor
+    WHERE EXTRACT(YEAR FROM v.data) = 2021
+    GROUP BY ALL
+)
+SELECT * FROM invoicing;
+
+-- Query 8.2: Daily Customer Ranking (Snapshot)
+-- Identifies top customers by volume on a specific date using Window Functions
+WITH total_sales AS (
+    SELECT
+      c.id_cliente,
+      SUM(v.quantidade) AS qty
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas` AS v
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p
+      ON v.id_produto = p.id_produto
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.clientes` AS c
+      ON v.id_cliente = c.id_cliente
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.vendedores` AS vd
+      ON c.id_vendedor = vd.id_vendedor
+    WHERE v.data = '2021-01-01'
+    GROUP BY ALL
+)
+SELECT
+  *,
+  RANK() OVER (ORDER BY qty DESC) AS ranking
+FROM total_sales;
