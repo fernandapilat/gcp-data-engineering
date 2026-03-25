@@ -335,3 +335,111 @@ SELECT
   *,
   RANK() OVER (ORDER BY qty DESC) AS ranking
 FROM total_sales;
+
+-- ##########################################################################
+-- SECTION 9: TEXT NORMALIZATION (CASE SENSITIVITY)
+-- Goal: Standardizing string casing for consistent data display and filtering.
+-- ##########################################################################
+
+SELECT 
+  nome, 
+  UPPER(nome) AS upper_name,   -- Converts to all caps
+  LOWER(nome) AS lower_name,   -- Converts to all lowercase
+  INITCAP(nome) AS initcap_name -- Capitalizes only the first letter of each word
+FROM `curso-bigquery-490113.belleza_verde_vendas.clientes`
+WHERE id_cliente IN (1, 8, 15, 17);
+
+-- ##########################################################################
+-- SECTION 10: STRING EXTRACTION (LEFT & RIGHT)
+-- Goal: Extracting a fixed number of characters from the beginning or end of a string.
+-- ##########################################################################
+
+-- Extracting first 4 characters
+SELECT 
+  nome, 
+  LEFT(nome, 4) AS short_code 
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+WHERE id_produto IN (3, 9);
+
+-- Extracting last 8 characters
+SELECT 
+  categoria, 
+  RIGHT(categoria, 8) AS category_suffix 
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+WHERE id_produto IN (5, 10);
+
+-- ##########################################################################
+-- SECTION 11: STRING TRIMMING & CLEANING
+-- Goal: Removing unwanted spaces or specific characters from text.
+-- ##########################################################################
+
+-- Standard trimming (White spaces)
+SELECT 
+  nome, 
+  LTRIM(nome) AS ltrim_space, -- Removes leading spaces
+  RTRIM(nome) AS rtrim_space, -- Removes trailing spaces
+  TRIM(nome) AS trim_both     -- Removes spaces from both sides
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+WHERE id_produto IN (7, 4);
+
+-- Character-specific trimming
+-- Note: LTRIM can remove specific symbols if provided as the second argument
+SELECT 
+  nome, 
+  LTRIM(nome, "-") AS ltrim_hyphen 
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+WHERE id_produto = 1;
+
+-- ##########################################################################
+-- SECTION 12: DATA QUALITY CALCULATION & CONDITIONAL LOGIC
+-- Goal: Using CASE WHEN to flag records that need data cleaning.
+-- ##########################################################################
+
+SELECT
+  nome,
+  CHAR_LENGTH(nome) AS original_size,
+  CHAR_LENGTH(TRIM(nome)) AS trimmed_size,
+  -- Calculating the difference to find hidden spaces
+  CHAR_LENGTH(nome) - CHAR_LENGTH(TRIM(nome)) AS space_count,
+  -- Classification logic based on character count
+  CASE
+    WHEN CHAR_LENGTH(nome) - CHAR_LENGTH(TRIM(nome)) > 0 THEN 'Character Problems'
+    ELSE 'Characters OK'
+  END AS quality_status
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`
+WHERE id_produto IN (7, 4);
+
+-- ##########################################################################
+-- SECTION 13: BOOLEAN SEARCH FUNCTIONS (STARTS_WITH & ENDS_WITH)
+-- Goal: Validating if strings follow a specific pattern (Returns TRUE/FALSE).
+-- ##########################################################################
+
+-- Checking if product name begins with "Óleo"
+SELECT 
+  nome, 
+  STARTS_WITH(nome, 'Óleo') AS is_oil
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`
+WHERE id_produto IN (3, 9);
+
+-- Checking if category ends with "pessoais"
+SELECT 
+  categoria, 
+  ENDS_WITH(categoria, 'pessoais') AS is_personal_care
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`
+WHERE id_produto IN (5, 10);
+
+-- ##########################################################################
+-- SECTION 14: STRING CONCATENATION & NESTED CLEANING
+-- Goal: Merging multiple columns or strings into a single value.
+-- ##########################################################################
+
+-- Basic Concatenation
+SELECT 
+  CONCAT(nome, ' | ', categoria) AS product_full_info
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;
+
+-- Advanced Concatenation with Nested Trimming
+-- Note: Cleaning the name (removing hyphens and spaces) before merging with category
+SELECT 
+  CONCAT(TRIM(LTRIM(nome, ' - ')), ' - ', categoria) AS cleaned_description
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;
