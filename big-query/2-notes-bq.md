@@ -89,4 +89,31 @@
   CASE 
     WHEN condition THEN result 
     ELSE default_result 
-  END AS alias
+  END AS alias```
+
+## 4. Advanced Search & Modification
+* **Goal:** Precise manipulation of strings by locating, extracting, or swapping specific patterns.
+
+### 4.1 INSTR(string, substring)
+* **Definition:** Returns the 1-based position of the first occurrence of a substring. Returns `0` if not found.
+* **Business Use:** Finding the position of delimiters like `@` in emails or `-` in serial numbers.
+
+### 4.2 SUBSTR(string, start_position, [length])
+* **Definition:** Extracts a portion of a string starting at a specific index.
+* **Business Use:** Extracting area codes (DDD) from phone numbers or specific segments from product SKUs.
+* **Note:** Remember that BigQuery uses 1-based indexing.
+
+### 4.3 REPLACE(original_string, search_pattern, replacement)
+* **Definition:** Replaces all occurrences of a specified pattern with a new string.
+* **Business Use:** Normalizing financial values (replacing `,` with `.`) or updating outdated brand names in a database.
+
+## 4.4 Advanced Regex & Substring Logic
+* **Regex Raw Strings (`r''`):** Use the prefix `r` before quotes in Regex to ensure special characters are read literally (Raw String).
+* **Flexible Substring:** `SUBSTRING(text, start)` 
+    * If the *length* parameter is omitted, it extracts everything from the start position to the **very end** of the string.
+
+### 4.5 Regex Patterns for Emails
+* **Rigid Pattern (`^[a-z...`):** Validates the entire structure (start, middle, domain, extension).
+* **Flexible Pattern (`\S+@\S+`):** Quickly checks for "anything-but-space" around the @ and dot.
+* **Pro Tip:** Use `\` before a dot (`\.`) when you want to search for a literal period, otherwise Regex thinks it means "any character."
+

@@ -443,3 +443,57 @@ FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;
 SELECT 
   CONCAT(TRIM(LTRIM(nome, ' - ')), ' - ', categoria) AS cleaned_description
 FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;
+
+
+-- ##########################################################################
+-- SECTION 15: NESTED STRING MANIPULATION (INSTR + SUBSTRING + REPLACE)
+-- Goal: Dynamically extracting and cleaning the first word of a product name.
+-- ##########################################################################
+
+SELECT
+  nome,
+  -- 1. Finding the position of the first space (after cleaning leading spaces)
+  INSTR(LTRIM(nome), ' ') AS first_space_pos,
+  
+  -- 2. Dynamic Extraction & Cleaning:
+  --    a. LTRIM: Removes leading spaces.
+  --    b. INSTR: Finds where the first word ends.
+  --    c. SUBSTRING: Cuts the text from the start to that space.
+  --    d. REPLACE: Removes any hyphens found in that first word.
+  REPLACE(
+    SUBSTRING(LTRIM(nome), 1, INSTR(LTRIM(nome), ' ')), 
+    '-', 
+    ''
+  ) AS cleaned_first_word
+
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;
+
+-- ##########################################################################
+-- SECTION 16: ADVANCED DATA CLEANING (CTE + REGEX + DYNAMIC SUBSTRING)
+-- Goal: Standardizing Postal Codes (CEPs) by extracting patterns and injecting hyphens.
+-- ##########################################################################
+
+WITH subquery_cleaning AS (
+  SELECT
+    cep,
+    -- REGEXP_EXTRACT: Searches for the pattern with a hyphen OR 8 consecutive digits.
+    -- The 'r' prefix indicates a "Raw String" (interprets Regex symbols literally).
+    REGEXP_EXTRACT(cep, r'[0-9]{5}-[0-9]{3}|[0-9]{8}') AS cep_extract
+  FROM
+    `curso-bigquery-490113.belleza_verde_vendas.clientes`
+)
+
+SELECT
+  cep,
+  CASE
+    -- When the extracted CEP has 8 digits (missing hyphen), we format it:
+    WHEN REGEXP_CONTAINS(cep_extract, r'[0-9]{8}')
+      THEN
+        CONCAT(
+          SUBSTRING(cep_extract, 1, 5), -- Extract the first 5 digits
+          '-',                          -- Inject the hyphen
+          SUBSTRING(cep_extract, 6)     -- Extract from the 6th character to the END
+        )
+    ELSE cep_extract -- If already formatted, keep as is
+  END AS cep_final
+FROM subquery_cleaning;
