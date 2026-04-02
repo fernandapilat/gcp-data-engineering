@@ -107,7 +107,7 @@
 * **Definition:** Replaces all occurrences of a specified pattern with a new string.
 * **Business Use:** Normalizing financial values (replacing `,` with `.`) or updating outdated brand names in a database.
 
-## 4.4 Advanced Regex & Substring Logic
+### 4.4 Advanced Regex & Substring Logic
 * **Regex Raw Strings (`r''`):** Use the prefix `r` before quotes in Regex to ensure special characters are read literally (Raw String).
 * **Flexible Substring:** `SUBSTRING(text, start)` 
     * If the *length* parameter is omitted, it extracts everything from the start position to the **very end** of the string.
@@ -116,4 +116,11 @@
 * **Rigid Pattern (`^[a-z...`):** Validates the entire structure (start, middle, domain, extension).
 * **Flexible Pattern (`\S+@\S+`):** Quickly checks for "anything-but-space" around the @ and dot.
 * **Pro Tip:** Use `\` before a dot (`\.`) when you want to search for a literal period, otherwise Regex thinks it means "any character."
+
+### 4.6 Advanced Formatting with `FORMAT()` and `CONCAT()`
+* **Data Storytelling:** Using `CONCAT()` to merge raw data with natural language strings, making reports human-readable.
+* **The `FORMAT()` Function:** Acts as a "translator" for numbers.
+    * **`%d` (Integer):** Formats the number as a whole integer, removing decimals.
+    * **`%.2f` (Float):** Formats the number as a decimal with exactly **2 decimal places**.
+* **Combined Logic:** When using `SUM()` inside `FORMAT()`, you ensure that the aggregated result is styled correctly before being concatenated into a final string.
 

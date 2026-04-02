@@ -497,3 +497,29 @@ SELECT
     ELSE cep_extract -- If already formatted, keep as is
   END AS cep_final
 FROM subquery_cleaning;
+
+
+-- ##########################################################################
+-- SECTION 17: DATA STORYTELLING & FORMATTING
+-- Using FORMAT() for precision and CONCAT() for narrative reports
+-- ##########################################################################
+
+SELECT
+  c.nome, 
+  SUM(v.quantidade) AS qty,
+  -- Formatting as Integer (%d)
+  FORMAT("%d", SUM(v.quantidade)) AS qty_string,
+  -- Building a human-readable sentence (Narrative Reporting)
+  CONCAT(
+    "O cliente ", 
+    c.nome, 
+    " comprou a quantidade de ", 
+    FORMAT("%d", SUM(v.quantidade)), 
+    " totalizando o faturamento de ", 
+    FORMAT("%.2f", SUM(v.quantidade * v.preco))) AS ex_string
+FROM
+  `curso-bigquery-490113.belleza_verde_vendas.clientes` c
+INNER JOIN
+  `curso-bigquery-490113.belleza_verde_vendas.vendas` v
+ON c.id_cliente = v.id_cliente
+GROUP BY c.nome;
