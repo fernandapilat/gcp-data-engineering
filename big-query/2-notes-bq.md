@@ -124,3 +124,62 @@
     * **`%.2f` (Float):** Formats the number as a decimal with exactly **2 decimal places**.
 * **Combined Logic:** When using `SUM()` inside `FORMAT()`, you ensure that the aggregated result is styled correctly before being concatenated into a final string.
 
+## 5. Temporal Data: Current Functions & Constructors
+
+### 5.1 Current Time Functions (Real-time)
+Functions used to capture the exact moment the query is executed.
+* **`CURRENT_DATE`**: Returns the current date (YYYY-MM-DD).
+* **`CURRENT_TIME`**: Returns the current clock time (HH:MM:SS).
+* **`CURRENT_DATETIME([timezone])`**: Returns the date and time. 
+    * *Example:* `CURRENT_DATETIME('America/Sao_Paulo')` ensures the result respects the Brazilian offset.
+* **`CURRENT_TIMESTAMP`**: Returns the global absolute point in time (UTC).
+
+### 5.2 Constructors (Creating Data from Scratch)
+Used when you have raw numbers or strings and need to "transform" them into formal temporal types.
+* **`TIMESTAMP("YYYY-MM-DD HH:MM:SS")`**: Converts a string into a global timestamp.
+* **`DATETIME(year, month, day, hour, minute, second)`**: Manual build of a datetime object using integers.
+* **`DATE(year, month, day)`**: Creates a date object.
+* **`TIME(hour, minute, second)`**: Creates a time-only object.
+
+> **💡 Pro-Tip:** Constructors are vital when merging data from different sources (like CSVs or Excel) where dates might be split into separate columns.
+
+### 5.3 Date Calculations (Arithmetic & Intervals)
+Used to project future dates or find the distance between events.
+* **`DATE_ADD`**: Adds an interval to a date.
+    * *Ex:* `DATE_ADD(date, INTERVAL 5 WEEK)`
+* **`DATE_SUB`**: Subtracts an interval from a date.
+    * *Ex:* `DATE_SUB('2023-12-25', INTERVAL 5 MONTH)` -> Returns '2023-07-25'.
+* **`DATE_DIFF`**: Calculates `end_date - start_date`.
+
+### 5.4 Extracting Parts (EXTRACT)
+Used to isolate a specific part of a date for reporting or filtering.
+
+* **`EXTRACT(PART FROM column)`**:
+    * **YEAR / MONTH / DAY**: Basic calendar parts.
+    * **DAYOFWEEK**: Returns 1 (Sunday) through 7 (Saturday). Great for weekend analysis.
+    * **QUARTER**: Returns 1 to 4 (useful for fiscal reports).
+
+####  Applications (Practical Use Cases):
+* **Temporal Analysis**: Evaluate trends, seasonal patterns, or perform Year-over-Year (YoY) comparisons.
+* **Data Grouping**: Grouping data by specific periods (e.g., months or years) for summarization and reporting.
+* **Data Filtering**: Filtering datasets to include only records within a specific period, such as a fiscal quarter or specific hours of the day.
+
+> **💡 Pro-Tip:** Use `EXTRACT` in your `GROUP BY` clause to create summaries (e.g., total sales per month). This reduces the volume of data sent to Power BI, making your dashboards much faster.
+### 5.5 Dynamic Calendars (CTEs & Arrays)
+Used to generate a continuous timeline, ensuring no dates are missing in the final analysis (Avoids "gaps" in charts).
+
+* **`GENERATE_DATE_ARRAY(min, max)`**: Creates the range.
+* **`UNNEST`**: Flattens the array into rows.
+* **Dynamic Range**: Uses `(SELECT MIN(data) ...)` to automatically adapt to the dataset's timespan.
+
+---
+
+#### 🚀 Pro-Performance Notes:
+Generating calendars on the fly is elegant but requires attention in Large Datasets:
+
+1. **Scanning Cost**: Every time you run `SELECT MIN/MAX`, BigQuery scans the entire date column. In tables with billions of rows, this can increase processing costs.
+2. **Materialization**: For production environments, the best practice is to create a physical `dim_calendar` table once a day instead of generating it inside every query.
+3. **Variables**: Using `DECLARE` to store Min/Max dates before the main query prevents the engine from re-calculating those values multiple times.
+
+> **💡 Integration Tip:** This logic mirrors the "Calendar Table" pattern in Power BI (DAX/Power Query), but doing it at the SQL level (Source) usually makes the Dashboard refresh much faster!
+

@@ -523,3 +523,54 @@ INNER JOIN
   `curso-bigquery-490113.belleza_verde_vendas.vendas` v
 ON c.id_cliente = v.id_cliente
 GROUP BY c.nome;
+
+
+-- ##########################################################################
+-- SECTION 18: TEMPORAL DATA (CURRENT, CONSTRUCTORS & CALCULATIONS)
+-- ##########################################################################
+
+-- 1. Current & Constructors: Capturing and building dates
+SELECT 
+  CURRENT_DATETIME('America/Sao_Paulo') AS agora_br,
+  DATE(2020, 07, 01) AS data_manual,
+  TIMESTAMP("2020-07-01 10:00:00") AS ts_string;
+
+-- 2. Calculations: Moving through time (ADD & SUB)
+SELECT 
+  DATE_ADD(CURRENT_DATE(), INTERVAL 5 WEEK) AS projeto_futuro,
+  DATE_SUB('2023-12-25', INTERVAL 5 MONTH) AS natal_menos_5_meses;
+
+-- 3. Calculations: Differences (DATE_DIFF)
+-- Syntax: DATE_DIFF(date_end, date_start, unit)
+SELECT 
+  DATE_DIFF(CURRENT_DATE(), DATE(2024, 01, 01), DAY) AS dias_desde_ano_novo;
+
+-- 4. Practical Application: Aging Analysis
+SELECT 
+  id_produto, 
+  data, 
+  quantidade, 
+  DATE_DIFF(CURRENT_DATE(), data, DAY) AS dias_desde_a_venda 
+FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+LIMIT 10;
+
+-- 5. Create a continuous timeline from the first to the last sale
+-- This avoids "gaps" in reports when a day has zero sales.
+
+WITH date_list AS (
+    SELECT generated_date
+    FROM UNNEST(
+        GENERATE_DATE_ARRAY(
+            (SELECT MIN(data) FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`), -- Min Date
+            (SELECT MAX(data) FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`)  -- Max Date
+        )
+    ) AS generated_date
+)
+SELECT 
+    ld.generated_date,
+    v.id_produto,
+    v.quantidade
+FROM date_list AS ld
+LEFT JOIN `curso-bigquery-490113.belleza_verde_vendas.vendas` AS v
+  ON ld.generated_date = v.data
+ORDER BY ld.generated_date;
