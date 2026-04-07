@@ -574,3 +574,123 @@ FROM date_list AS ld
 LEFT JOIN `curso-bigquery-490113.belleza_verde_vendas.vendas` AS v
   ON ld.generated_date = v.data
 ORDER BY ld.generated_date;
+
+-- ##########################################################################
+-- SECTION 18.1: PERIOD BOUNDARIES & NESTED LOGIC (NEW FUNCTIONS)
+-- ##########################################################################
+
+-- 6. Boundary Analysis: First and Last days of periods
+SELECT 
+  CURRENT_DATETIME() AS ref_date,
+  LAST_DAY(CURRENT_DATETIME(), MONTH) AS last_day_month,
+  LAST_DAY(CURRENT_DATETIME(), YEAR) AS last_day_year,
+  DATE_TRUNC(CURRENT_DATETIME(), MONTH) AS first_day_month,
+  DATE_TRUNC(CURRENT_DATETIME(), YEAR) AS first_day_year;
+
+-- 7. Complex Business Rule: Payment Due Dates
+-- Calculation: 15 days after the 1st day of the next month of the sale.
+SELECT 
+  id_produto, 
+  data AS sale_date, 
+  DATE_ADD(
+    DATE_TRUNC(
+      DATE_ADD(data, INTERVAL 1 MONTH), 
+      MONTH
+    ), 
+    INTERVAL 15 DAY
+  ) AS due_date
+FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+LIMIT 10;
+
+-- ##########################################################################
+-- SECTION 18.2: DATA FORMATTING (HUMAN READABLE)
+-- ##########################################################################
+
+SELECT 
+  data AS original_date,
+  
+  -- Full written format. Ex: "Wednesday, April 07, 2026"
+  FORMAT_DATE('%A, %B %d, %Y', data) AS long_date_format,
+  
+  -- Standard Brazilian format. Ex: "07/04/26"
+  FORMAT_DATE('%d/%m/%y', data) AS br_date_format,
+  
+  -- Monthly grouping format for BI. Ex: "2026-04"
+  FORMAT_DATE('%Y-%m', data) AS year_month_index
+FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+LIMIT 5;
+
+-- ##########################################################################
+-- SECTION 19: SALES PERFORMANCE & GOAL TRACKING (ADVANCED DATA CLEANING)
+-- ##########################################################################
+
+WITH
+  -- 1. Aggregate annual sales per salesperson and product
+  annual_sales AS (
+  SELECT
+    vd.id_vendedor,
+    vd.nome AS seller_name,
+    p.id_produto,
+    p.nome AS product_name,
+    EXTRACT(YEAR FROM v.data) AS sales_year,
+    SUM(v.quantidade) AS total_units_sold
+  FROM
+    `curso-bigquery-490113.belleza_verde_vendas.vendas` v
+  INNER JOIN
+    `curso-bigquery-490113.belleza_verde_vendas.produtos` p
+    ON v.id_produto = p.id_produto
+  INNER JOIN
+    `curso-bigquery-490113.belleza_verde_vendas.clientes` c
+    ON v.id_cliente = c.id_cliente
+  INNER JOIN
+    `curso-bigquery-490113.belleza_verde_vendas.vendedores` vd
+    ON c.id_vendedor = vd.id_vendedor
+  GROUP BY 1, 2, 3, 4, 5),
+
+  -- 2. Calculate lifetime historical sales for share analysis
+  historical_sales AS (
+  SELECT
+    vd.id_vendedor,
+    p.id_produto,
+    SUM(v.quantidade) AS lifetime_units_sold
+  FROM
+    `curso-bigquery-490113.belleza_verde_vendas.vendas` v
+  INNER JOIN
+    `curso-bigquery-490113.belleza_verde_vendas.clientes` c
+    ON v.id_cliente = c.id_cliente
+  INNER JOIN
+    `curso-bigquery-490113.belleza_verde_vendas.vendedores` vd
+    ON c.id_vendedor = vd.id_vendedor
+  INNER JOIN
+    `curso-bigquery-490113.belleza_verde_vendas.produtos` p
+    ON v.id_produto = p.id_produto
+  GROUP BY 1, 2)
+
+-- 3. Final join with goals and Data Cleaning (Encoding & Normalization)
+SELECT
+  ans.seller_name,
+  -- Fixing Encoding issues and standardizing product names
+  REPLACE(
+    REPLACE(
+      REPLACE(
+        TRIM(ans.product_name), 
+        '-', ''), 
+        'Ã“leo', 'Óleo'),
+        'MÃ£os', 'Mãos') AS standardized_product,
+  ans.sales_year,
+  ans.total_units_sold,
+  -- Formatting percentage for reports (Share of lifetime sales)
+  CONCAT(FORMAT("%'.2f", ROUND((ans.total_units_sold / hs.lifetime_units_sold) * 100, 2)), '%') AS sales_distribution_pct,
+  m.quantidade_meta AS target_goal,
+  -- Business Logic: Goal attainment classification
+  CASE
+    WHEN ans.total_units_sold >= m.quantidade_meta THEN 'Good'
+    ELSE 'Low'
+  END AS performance_status,
+  -- Calculating performance variance vs target with safe string concatenation
+  SAFE_CAST(ROUND(((ans.total_units_sold / m.quantidade_meta) - 1) * 100, 2) AS STRING) || '%' AS vs_target_performance_pct
+FROM
+  annual_sales ans
+INNER JOIN
+  `curso-bigquery-490113.belleza_verde_vendas.metas` m
+  ON ans.id_produto = m.id_produto

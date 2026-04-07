@@ -183,3 +183,46 @@ Generating calendars on the fly is elegant but requires attention in Large Datas
 
 > **💡 Integration Tip:** This logic mirrors the "Calendar Table" pattern in Power BI (DAX/Power Query), but doing it at the SQL level (Source) usually makes the Dashboard refresh much faster!
 
+### 5.6 Practical Date Recipes & Formatting
+A reference for common business logic and human-readable data presentation using `LAST_DAY`, `DATE_TRUNC`, and `FORMAT_DATE`.
+
+#### 📅 Business Logic Recipes
+| Goal | SQL Implementation |
+| :--- | :--- |
+| **First Day of Month** | `DATE_TRUNC(data, MONTH)` |
+| **Next Month's Due Date (Day 15)** | `DATE_ADD(DATE_TRUNC(DATE_ADD(data, INTERVAL 1 MONTH), MONTH), INTERVAL 15 DAY)` |
+| **Days Since Sale (Aging)** | `DATE_DIFF(CURRENT_DATE(), data, DAY)` |
+
+#### 🎨 Presentation Masks (`FORMAT_DATE`)
+Used to transform technical dates into localized strings for dashboards and reports.
+
+| Format Code | Description | Example Output |
+| :--- | :--- | :--- |
+| **%A** | Full weekday name | "Wednesday" |
+| **%B** | Full month name | "April" |
+| **%d/%m/%Y** | Standard Brazilian format | "07/04/2026" |
+| **%Y-%m** | Year-Month index for BI | "2026-04" |
+| **%Q** | Quarter of the year (1-4) | "2" |
+| **%j** | Day of the year (001-366) | "097" |
+| **%H:%M:%S** | Full Time (24h) | "15:30:05" |
+
+> **Pro-Tip:** While `DATE_TRUNC` is used for **calculation** and grouping, `FORMAT_DATE` is used for **display**. Always perform filters and joins using the original Date/Timestamp types for better performance before formatting the final output.
+
+### 5.7 Unix Time & The Year 2038 Problem
+Unix Time counts seconds since `1970-01-01`. 
+
+* **The Limitation:** Systems using 32-bit integers to store Unix Time will overflow on **January 19, 2038**.
+* **The Effect:** After the overflow, the date will reset to **1901**, potentially crashing legacy systems, databases, and embedded hardware.
+* **The Fix:** Modern cloud environments like **BigQuery** use 64-bit integers (`INT64`), which supports dates for billions of years into the future.
+
+> **Why this matters:** When migrating legacy data to BigQuery, ensure that timestamp fields are correctly mapped to 64-bit types to avoid data corruption.
+
+#### 🛠️ Unix Conversion Functions
+Essential functions for translating between Human-Readable Timestamps and Unix Epoch Numbers.
+
+| Function | Direction | Use Case |
+| :--- | :--- | :--- |
+| `UNIX_SECONDS()` | Date ➡️ Number | Compressing data for storage or performance. |
+| `TIMESTAMP_SECONDS()` | Number ➡️ Date | Converting server logs or API data into readable reports. |
+
+> **Warning:** If you use these functions on 32-bit systems (Legacy), `TIMESTAMP_SECONDS` will fail for dates beyond January 2038.
