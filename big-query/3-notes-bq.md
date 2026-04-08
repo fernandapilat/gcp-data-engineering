@@ -77,3 +77,36 @@ To choose the right function, we compare how each one reacts to the same input v
 | **2.5** | 3 | 2 | 2 | 3 | **ROUND** starts pushing up from .5. |
 | **2.9** | 3 | 2 | 2 | 3 | **TRUNC/FLOOR** ignore proximity to the next integer. |
 | **-2.1** | -2 | -2 | -3 | -2 | **FLOOR** is the only one that drops to -3. |
+
+### 2.3 Handling "Infinity" and Division by Zero
+In real-world datasets, encountering a zero in the denominator is common. Standard SQL operations will crash if they try to divide by zero. BigQuery provides specific scalar functions to ensure process continuity and handle these mathematical exceptions.
+
+* **`SAFE_DIVIDE(numerator, denominator)`**: 
+    * **Logic:** If the denominator is `0`, it returns `NULL`.
+    * **Business Context:** Best for clean reports where you want to hide errors or missing data.
+* **`IEEE_DIVIDE(numerator, denominator)`**: 
+    * **Logic:** Follows the IEEE 754 standard. Instead of `NULL`, it returns mathematical symbols:
+        * `Infinity` (if numerator > 0)
+        * `-Infinity` (if numerator < 0)
+        * `NaN` (Not a Number, if 0/0)
+    * **Business Context:** Acts as a "signal flare." `Infinity` in a report quickly points out data anomalies (like a product sold with zero cost) without stopping the entire data pipeline.
+
+* **`IS_INF(expression)`**: Returns `TRUE` if the value is infinite.
+* **`IS_NAN(expression)`**: Returns `TRUE` if the value is "Not a Number".
+
+### 2.4 The `SAFE.` Prefix (Global Safety Net)
+In BigQuery, the `SAFE.` prefix can be applied to many scalar functions to handle "dirty data." It is a best practice to ensure your data pipeline doesn't crash due to unexpected values.
+
+* **Definition:** Prepending `SAFE.` to a function tells BigQuery to return `NULL` instead of throwing a runtime error when an operation is logically or mathematically impossible.
+* **Why use it?** It shifts the problem from **"The query failed"** to **"Some rows contain incompatible data"**, allowing you to finish the analysis and investigate the nulls later.
+
+#### Essential Examples for Data Analysis:
+
+| Function | Standard Behavior (Crashes Query) | SAFE Behavior (Returns NULL) | Context |
+| :--- | :--- | :--- | :--- |
+| **CAST** | `CAST('ABC' AS INT64)` | `SAFE.CAST('ABC' AS INT64)` | When a numeric column contains text. |
+| **LOG/SQRT** | `SQRT(-1)` | `SAFE.SQRT(-1)` | When performing invalid math operations. |
+| **PARSE_DATE** | Invalid date strings (e.g., 'Feb 31') | `SAFE.PARSE_DATE('%b %d', 'Feb 31')` | When dealing with messy date formats. |
+| **SUBSTR** | Out-of-bounds references | `SAFE.SUBSTR(text, 1000, 5)` | When extracting text from variable strings. |
+
+---
