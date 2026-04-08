@@ -1,0 +1,71 @@
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.produtos 
+(id_produto, nome, categoria, preco, distribuicao, materiasprimas)
+VALUES (11, 'Ã“leo Corporal Semente de Uva Especial', 'Cuidados com a pele', 0, [0.5, 0.5], ['9', '10']);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.vendas
+(id_venda, id_produto, id_cliente, data, quantidade, preco, data_unix)
+VALUES (10951, 11, 1, '2022-01-02', 3, 24.60, 1641081600);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.produtos 
+(id_produto, nome, categoria, preco, distribuicao, materiasprimas)
+VALUES (12, 'Ã“leo Corporal Semente de Uva Master', 'Cuidados com a pele', NULL, [0.5, 0.5], ['9', '10']);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.produtos 
+(id_produto, nome, categoria, preco, distribuicao, materiasprimas)
+VALUES (13, 'Ã“leo Corporal Semente de Uva Master Plus', 'Cuidados com a pele', 0, [0.5, 0.5], ['9', '10']);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.produtos 
+(id_produto, nome, categoria, preco, distribuicao, materiasprimas)
+VALUES (14, 'Ã“leo Corporal Semente de Uva Especial', 'Cuidados com a pele', 0, [0.5, 0.5], ['9', '10']);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.vendas
+(id_venda, id_produto, id_cliente, data, quantidade, preco, data_unix)
+VALUES (10951, 12, 1, '2022-01-02', 3, NULL, 1641081600);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.vendas
+(id_venda, id_produto, id_cliente, data, quantidade, preco, data_unix)
+VALUES (10951, 13, 1, '2022-01-02', 3, -24.60, 1641081600);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.vendas
+(id_venda, id_produto, id_cliente, data, quantidade, preco, data_unix)
+VALUES (10951, 14, 1, '2022-01-02', 3, 0, 1641081600);
+
+ALTER TABLE curso-bigquery-490113.belleza_verde_vendas.vendas
+ADD COLUMN faturamentoN NUMERIC;
+
+ALTER TABLE curso-bigquery-490113.belleza_verde_vendas.vendas
+ADD COLUMN faturamentoF FLOAT64;
+
+UPDATE curso-bigquery-490113.belleza_verde_vendas.vendas SET faturamentoN = quantidade * CAST(preco AS NUMERIC)
+WHERE 1=1;
+
+UPDATE curso-bigquery-490113.belleza_verde_vendas.vendas SET faturamentoF = quantidade * preco
+WHERE 1=1;
+
+ALTER TABLE curso-bigquery-490113.belleza_verde_vendas.vendas
+ADD COLUMN venda_vista BOOL;
+
+UPDATE curso-bigquery-490113.belleza_verde_vendas.vendas SET venda_vista = TRUE
+WHERE RAND() > 0.35;
+
+UPDATE curso-bigquery-490113.belleza_verde_vendas.vendas SET venda_vista = FALSE
+WHERE venda_vista IS NULL;
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.vendas
+(id_venda, id_produto, id_cliente, data, quantidade, preco, data_unix, faturamentoF, faturamentoN, venda_vista)
+VALUES (10951, 12, 1, '2022-01-02', NULL, 15.80, 1641081600, NULL, NULL, FALSE);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.vendas
+(id_venda, id_produto, id_cliente, data, quantidade, preco, data_unix, faturamentoF, faturamentoN, venda_vista)
+VALUES (10951, 12, 2, '2022-01-02', NULL, NULL, 1641081600, NULL, NULL, FALSE);
+
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas.vendas
+(id_venda, id_produto, id_cliente, data, quantidade, preco, data_unix, faturamentoF, faturamentoN, venda_vista)
+VALUES (10951, 12, 2, '2022-01-02', 3, 15.80, 1641081600, NULL, NULL, FALSE);
+
+ALTER TABLE curso-bigquery-490113.belleza_verde_vendas.produtos
+ADD COLUMN precoS STRING;
+
+UPDATE curso-bigquery-490113.belleza_verde_vendas.produtos SET precoS = CAST(preco AS STRING) WHERE 1=1;
+
+UPDATE curso-bigquery-490113.belleza_verde_vendas.produtos SET precoS = 'NÃ£o Definido' WHERE id_produto = 1;

@@ -694,3 +694,42 @@ FROM
 INNER JOIN
   `curso-bigquery-490113.belleza_verde_vendas.metas` m
   ON ans.id_produto = m.id_produto
+
+
+-- ##########################################################################
+-- SECTION 20: REVENUE VARIANCE ANALYSIS (ACTUAL VS. CATALOG PRICE)
+-- ##########################################################################
+
+WITH sales_comparison AS (
+    -- Aggregating actual revenue vs. catalog-based revenue for 2022
+    SELECT 
+        p.nome AS product_name, 
+        SUM(s.quantidade * s.preco) AS actual_revenue, 
+        SUM(s.quantidade * p.preco) AS catalog_revenue 
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas` AS s
+    INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p 
+        ON s.id_produto = p.id_produto
+    WHERE EXTRACT(YEAR FROM s.data) = 2022
+      -- Excluding specific test/inactive items to ensure data integrity
+      AND s.id_produto NOT IN (11, 12, 13, 14) 
+    GROUP BY p.nome
+),
+
+calculated_variance AS (
+    -- Calculating the percentage deviation using scalar operations
+    SELECT 
+        product_name, 
+        actual_revenue,
+        catalog_revenue,
+        (((actual_revenue / catalog_revenue) - 1) * 100) AS deviation_pct 
+    FROM sales_comparison
+)
+
+-- Final Output: Applying Numerical Functions for reporting
+SELECT 
+    product_name, 
+    actual_revenue,
+    catalog_revenue,
+    ROUND(deviation_pct, 2) AS deviation_pct
+FROM calculated_variance
+ORDER BY deviation_pct DESC;
