@@ -701,7 +701,8 @@ INNER JOIN
 -- ##########################################################################
 
 WITH sales_comparison AS (
-    -- Aggregating actual revenue vs. catalog-based revenue for 2022
+    -- Step 1: Aggregate actual revenue (from sales) vs. catalog revenue (from product list)
+    -- This helps identify if products are being sold at a discount or premium.
     SELECT 
         p.nome AS product_name, 
         SUM(s.quantidade * s.preco) AS actual_revenue, 
@@ -710,13 +711,14 @@ WITH sales_comparison AS (
     INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p 
         ON s.id_produto = p.id_produto
     WHERE EXTRACT(YEAR FROM s.data) = 2022
-      -- Excluding specific test/inactive items to ensure data integrity
+      -- Data Cleaning: Excluding internal testing or inactive product IDs
       AND s.id_produto NOT IN (11, 12, 13, 14) 
     GROUP BY p.nome
 ),
 
 calculated_variance AS (
-    -- Calculating the percentage deviation using scalar operations
+    -- Step 2: Calculate the raw percentage deviation using a scalar formula
+    -- Formula: ((Actual / Catalog) - 1) * 100
     SELECT 
         product_name, 
         actual_revenue,
@@ -725,11 +727,38 @@ calculated_variance AS (
     FROM sales_comparison
 )
 
--- Final Output: Applying Numerical Functions for reporting
+-- Final Output: Comparative Lab of Scalar Numerical Functions
+-- Here we test how different rounding methods impact the final report
 SELECT 
     product_name, 
     actual_revenue,
     catalog_revenue,
-    ROUND(deviation_pct, 2) AS deviation_pct
+    -- 1. Standard mathematical rounding to 2 decimal places
+    ROUND(deviation_pct, 2) AS round_pct,
+    -- 2. Rounding to the nearest whole integer
+    ROUND(deviation_pct, 0) AS round_0_pct,
+    -- 3. Honest truncation: cuts off decimals after the 2nd digit
+    TRUNC(deviation_pct, 2) AS trunc_pct,
+    -- 4. Floor: Always rounds down to the next integer (conservative)
+    FLOOR(deviation_pct) AS floor_pct,
+    -- 5. Ceil: Always rounds up to the next integer (aggressive)
+    CEIL(deviation_pct) AS ceil_pct
 FROM calculated_variance
 ORDER BY deviation_pct DESC;
+
+-- ##########################################################################
+-- SECTION 21: ARRAY FLATTENING & SAFE DATA ACCESS (RAW TO COLUMNS)
+-- ##########################################################################
+
+SELECT 
+  id_produto, 
+  nome, 
+  materiasprimas,
+  -- Accessing array elements safely (Index starts at 0)
+  -- Using SAFE_OFFSET to prevent "out of bounds" errors if arrays are empty
+  materiasprimas[SAFE_OFFSET(0)] AS first_materia_prima, 
+  materiasprimas[SAFE_OFFSET(1)] AS second_materia_prima,
+  materiasprimas[SAFE_OFFSET(2)] AS third_materia_prima, 
+  -- Calculating the total number of items in the array for auditing
+  ARRAY_LENGTH(materiasprimas) AS array_size
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;

@@ -109,4 +109,33 @@ In BigQuery, the `SAFE.` prefix can be applied to many scalar functions to handl
 | **PARSE_DATE** | Invalid date strings (e.g., 'Feb 31') | `SAFE.PARSE_DATE('%b %d', 'Feb 31')` | When dealing with messy date formats. |
 | **SUBSTR** | Out-of-bounds references | `SAFE.SUBSTR(text, 1000, 5)` | When extracting text from variable strings. |
 
+> **💡 Tip: Not all functions support the `SAFE.` prefix**
+>
+> While `SAFE.` is a powerful tool to prevent execution errors, it only works with **scalar functions** (functions that process one value at a time, such as `CAST`, `SUBSTR`, or mathematical functions).
+>
+> **Common functions that DO NOT support `SAFE.`:**
+> * **Aggregate Functions:** `SUM()`, `AVG()`, `COUNT()`, `MAX()`. These functions naturally ignore `NULL` values, so the prefix is unnecessary (and will cause an error).
+> * **Direct Logical/Math Operators:** You cannot use `SAFE.(2 + 2)`. Instead, use specific functions like `SAFE_DIVIDE`, `SAFE_ADD`, or `SAFE_MULTIPLY`.
+> * **Window Functions:** Functions like `RANK()` or `ROW_NUMBER()` do not accept the prefix.
+
 ---
+
+## 3. Numeric Functions and Advanced Precision
+
+This topic explores mathematical data processing in BigQuery, focusing on ensuring financial integrity, handling scale, and automating data categorization.
+
+### 3.1 Numerical Notations and Precision (NUMERIC vs. FLOAT64)
+
+* **NUMERIC / BIGNUMERIC:** Best practice for financial calculations. Uses decimal base to prevent binary rounding errors (crucial for exact currency calculations).
+* **FLOAT64:** Used for scientific and statistical modeling where absolute penny-level precision is secondary to high-speed computation.
+
+### 3.2 Directional Functions and Logical Math
+
+#### `SIGN(X)`
+The `SIGN` function identifies the direction of a numeric value. It serves as a high-performance alternative to `CASE WHEN` for simple trend classification.
+
+* **Returns 1:** If the value is positive.
+* **Returns -1:** If the value is negative.
+* **Returns 0:** If the value is zero.
+
+> **Practical Example (Section 23):** Identifying stock health trends.
