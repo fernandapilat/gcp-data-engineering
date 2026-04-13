@@ -139,3 +139,75 @@ The `SIGN` function identifies the direction of a numeric value. It serves as a 
 * **Returns 0:** If the value is zero.
 
 > **Practical Example (Section 23):** Identifying stock health trends.
+
+### 3.3 Randomization and Data Sampling
+
+#### `RAND()`
+Generates a pseudo-random `FLOAT64` value between 0 and 1. Essential for sampling and A/B testing.
+
+* **Data Sampling:** Used to inspect a representative subset of a massive dataset without processing the entire table.
+* **A/B Testing:** Useful for splitting users into random cohorts for experiments.
+
+```sql
+-- Section 24: Random Sampling (Sampling 1% of the data)
+SELECT *
+FROM `projeto.dataset.tabela_gigante`
+WHERE RAND() < 0.01;
+
+-- Section 24: A/B Testing Cohorts
+SELECT 
+  id_usuario,
+  IF(RAND() < 0.5, 'Group_A', 'Group_B') AS experiment_cohort
+FROM `projeto.dataset.usuarios`;
+```
+
+> **Pro-Tip:** If you need a reproducible result (e.g., a "random" group assignment that stays the same every time you query for a specific user), use  ``` FARM_FINGERPRINT()``` instead of ```RAND()```. This hashes a value into a stable integer.
+
+### 3.4 Advanced Mathematical Toolkit
+
+This section documents the auxiliary mathematical functions in BigQuery, categorized by their practical application in Analytics Engineering.
+
+#### Comparison and Boundary Functions
+Used to enforce business rules and data normalization.
+
+* **`GREATEST(x, y, ...)`:** Returns the maximum value.
+* **`LEAST(x, y, ...)`:** Returns the minimum value.
+
+```sql
+-- Example: Capping a discount between 0% and 50%
+SELECT 
+  nome_produto,
+  GREATEST(0, LEAST(desconto_aplicado, 0.5)) AS desconto_final
+FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;
+```
+
+#### Modulo and Safe Operations
+Essential for data partitioning and defensive programming.
+
+* `MOD(x, y)`: Returns the remainder of the division.
+* `SAFE_MULTIPLY(x, y)`: Prevents query failure by returning `NULL` instead of an error on overflow.
+
+```sql
+-- Example: Distributing users into 2 groups (A/B Testing)
+SELECT 
+  id_usuario,
+  IF(MOD(id_usuario, 2) = 0, 'Group_A', 'Group_B') AS cohort
+FROM `curso-bigquery-490113.belleza_verde_vendas.usuarios`;
+```
+
+#### Logarithmic, Power, and Trigonometric Functions
+Used for advanced statistical modeling, data transformation, and spatial analysis.
+
+* `POW(x, y)`: Calculates x raised to the power of y.
+* `LN(x)`: Natural logarithm of x.
+* `LOG(x, base)`: Logarithm of x in the specified base (defaults to 10).
+* `SAFE.LOG(x, base)`: Similar to `LOG`, but returns `NULL` instead of an error if x <= 0.
+* `SIN(x)`, `COS(x)`, `TAN(x)`: Trigonometric functions (input in radians).
+* `RADIANS(x)`, `DEGREES(x)`: Angular conversions.
+
+```sql
+-- Example: Using POW for compound growth calculations
+SELECT 
+  valor_inicial * POW(1 + taxa_juros, periodo) AS valor_futuro
+FROM `projeto.dataset.financeiro`;
+```
