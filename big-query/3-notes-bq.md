@@ -211,3 +211,24 @@ SELECT
   valor_inicial * POW(1 + taxa_juros, periodo) AS valor_futuro
 FROM `projeto.dataset.financeiro`;
 ```
+
+### 3.5 Data Binning & Categorization
+Used to transform continuous values (such as revenue, age, or scores) into discrete buckets (labels or tiers) without the need for complex and verbose `CASE WHEN` statements.
+
+* **`RANGE_BUCKET(value, boundaries)`**: This function returns the index (integer) of the "bucket" in which the provided value fits, based on the defined array of boundaries.
+
+
+#### **Practical Applications in Marketing & Sales**
+The `RANGE_BUCKET` function is a game-changer for segmentation and business intelligence:
+
+* **RFM Analysis (Recency, Frequency, Monetary)**:
+    * Categorize customers by days since last purchase (Recency), total orders (Frequency), or total spend (Monetary) to identify "VIPs" vs. "At Risk" customers instantly.
+* **Price Tier Performance**:
+    * Group products into price ranges (e.g., Budget, Mid-range, Premium) to identify which price points drive the highest volume or margin.
+* **Conversion Time-to-Purchase**:
+    * Bin the time elapsed between the first lead touchpoint and the final sale (e.g., 0-24h, 1-7 days, 30+ days) to optimize follow-up automation.
+* **Engagement Scoring**:
+    * Segment users based on Email Click-Through Rates (CTR) or App Usage sessions into "Highly Active", "Passive", or "Churn-prone".
+* **Marketing Scalability (CAC Analysis)**:
+    * Group ad spend into investment tiers to analyze if Customer Acquisition Cost (CAC) remains stable as investment scales up.
+

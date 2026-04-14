@@ -762,3 +762,28 @@ SELECT
   -- Calculating the total number of items in the array for auditing
   ARRAY_LENGTH(materiasprimas) AS array_size
 FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`;
+
+
+-- ##########################################################################
+-- SECTION 22: DATA BUCKETING & REVENUE ANALYSIS
+-- ##########################################################################
+
+WITH lv AS (
+  -- Filter out specific product IDs and select relevant billing data
+  SELECT 
+    id_venda, 
+    faturamento AS revenue
+  FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+  WHERE id_produto NOT IN (11, 12, 13, 14)
+)
+
+SELECT 
+  -- Categorize revenue into buckets based on defined thresholds
+  -- Returns the bucket index (0, 1, 2, 3, 4, 5)
+  RANGE_BUCKET(lv.revenue, [50.0, 100.0, 300.0, 500.0, 1000.0]) AS bucket_index,
+  
+  -- Count the number of sales per bucket for analytical insight
+  COUNT(*) AS total_sales
+FROM lv
+GROUP BY 1
+ORDER BY 1;
