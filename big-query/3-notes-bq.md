@@ -232,3 +232,184 @@ The `RANGE_BUCKET` function is a game-changer for segmentation and business inte
 * **Marketing Scalability (CAC Analysis)**:
     * Group ad spend into investment tiers to analyze if Customer Acquisition Cost (CAC) remains stable as investment scales up.
 
+## 4. SQL Logical Operators
+
+Logical operators serve as the core logic for data filtration, allowing you to establish rigorous conditional rules. They are indispensable for shaping result sets and ensuring that your queries reflect the specific business logic required for your data analysis.
+
+### 4.1 Operators Table
+
+| Operator | Description | Usage Example |
+| :--- | :--- | :--- |
+| **AND** | True if all conditions are met. | `price > 100 AND stock > 0` |
+| **OR** | True if at least one condition is met. | `status = 'Sold' OR status = 'Pending'` |
+| **NOT** | Reverses the condition. | `NOT category = 'Clearance'` |
+
+### 4.2 SQL Examples
+
+**Using AND:**
+```sql
+SELECT *
+FROM `your_project.dataset.products`
+WHERE price < 50
+  AND stock > 10;
+```
+
+### 4.3 Best Practice: The Power of Parentheses
+Always use parentheses when mixing `AND` and `OR` to ensure the correct order of operations.
+
+```sql
+SELECT *
+FROM `your_project.dataset.products`
+WHERE (category = 'Electronics' OR category = 'Books')
+  AND on_sale = TRUE;
+  ```
+
+### 4.4 Boolean Logic (TRUE, FALSE, and NULL)
+
+In SQL, every condition in the `WHERE` clause is a **Boolean Expression**. This means that for every row, the database evaluates the condition and returns one of three states:
+
+* **TRUE**: The row meets the criteria and **will** be displayed.
+* **FALSE**: The row does not meet the criteria and **will not** be displayed.
+* **NULL**: The value is unknown or missing. In filters, `NULL` behaves like a `FALSE` (it won't show the row).
+
+#### The Truth Table
+This table shows how SQL decides the final result when combining conditions:
+
+| Condition A | Condition B | A AND B | A OR B |
+| :--- | :--- | :--- | :--- |
+| **TRUE** | **TRUE** | **TRUE** | **TRUE** |
+| **TRUE** | **FALSE** | **FALSE** | **TRUE** |
+| **FALSE** | **FALSE** | **FALSE** | **FALSE** |
+
+### 4.5 The "Unknown" (NULL)
+A common pitfall in SQL is how `NULL` interacts with logic. If a value is `NULL`, it isn't "True" nor "False"—it's unknown.
+
+* `TRUE AND NULL` results in `NULL`
+* `FALSE AND NULL` results in `FALSE`
+* `TRUE OR NULL` results in `TRUE`
+
+**Practical Example:**
+If you want to find products that are explicitly marked as "Not Active", you use:
+```sql
+SELECT *
+FROM `your_project.dataset.products`
+WHERE is_active = FALSE;
+```
+
+### 4.6 Conditional Logic: IF & CASE
+
+Conditional logic allows you to transform your data dynamically during a query, creating new categories or labels based on specific criteria.
+
+#### The IF() Function
+The IF() function is a concise way to evaluate a single condition and return one of two results.
+*Syntax: IF(condition, value_if_true, value_if_false)*
+
+```sql
+SELECT 
+  product_name,
+  IF(price > 50, 'Expensive', 'Affordable') AS price_category
+FROM `your_project.dataset.products`;
+```
+
+#### The CASE WHEN Statement
+CASE WHEN is the industry standard in SQL. It is more versatile than IF() because it can handle multiple conditions and improves code readability.
+
+```sql
+SELECT 
+  product_name,
+  CASE 
+    WHEN price > 100 THEN 'Premium'
+    WHEN price > 50 THEN 'Mid-range'
+    ELSE 'Budget'
+  END AS price_category
+FROM `your_project.dataset.products`;
+```
+
+## 5. Logical Functions & Conditional Expressions
+
+This section covers functions used to handle null values and convert data dynamically. These are essential for ensuring data quality and preventing errors in calculations.
+
+### 5.1 COALESCE Function
+The `COALESCE()` function returns the first non-null value in a list of arguments. It is widely used to provide default values when a column contains `NULL`.
+
+**Syntax:** `COALESCE(value_1, value_2, ..., default_value)`
+
+```sql
+SELECT 
+  product_name,
+  price,
+  COALESCE(discount, 0) AS final_discount,
+  price - COALESCE(discount, 0) AS net_price
+FROM `your_project.dataset.sales`;
+```
+
+### 5.2 COALESCE vs IFNULL
+While `COALESCE` is the SQL standard and accepts multiple arguments, BigQuery also supports `IFNULL()`, which is a simpler version for exactly two arguments.
+
+* **IFNULL(val, default)**: Specific for two values.
+* **COALESCE(v1, v2, v3, ...)**: More flexible, evaluates multiple options in order.
+
+```sql
+-- Using IFNULL for a simple replacement
+SELECT IFNULL(phone_number, 'No phone provided') as contact_info
+FROM `your_project.dataset.customers`;
+```
+
+### 5.3 Data Type Conversion (CAST)
+
+Data often arrives in formats that prevent mathematical operations — for instance, a numeric value stored as a string (`'100'`). The `CAST()` function allows you to explicitly convert data from one type to another, ensuring your calculations work correctly.
+
+**Syntax:** `CAST(expression AS data_type)`
+
+**Example:**
+Converting a string column to an integer:
+```sql
+SELECT 
+  CAST(product_id AS INT64) AS product_id_int
+FROM `your_project.dataset.products`;
+```
+
+#### Why and when to use CAST?
+* **Aggregations:** You cannot `SUM()` a column that is defined as a `STRING`.
+* **Joins:** You cannot join two tables if the join key in Table A is a `STRING` and in Table B it is an `INT64`.
+* **Date Handling:** Converting `STRING` dates (e.g., '2026-04-15') into actual `DATE` types to use calendar functions.
+
+#### The "Safe" Approach: SAFE_CAST
+A very common problem is trying to cast a non-numeric string (e.g., 'ABC') into an integer, which causes the query to fail. BigQuery offers `SAFE_CAST()`, which returns `NULL` instead of an error if the conversion fails.
+
+```sql
+SELECT 
+  SAFE_CAST(price_string AS FLOAT64) AS price_numeric
+FROM `your_project.dataset.products`;
+```
+
+### 5.5 Conditional Categorization (CASE WHEN)
+
+The `CASE WHEN` statement is the most powerful tool for creating custom business logic within your queries. It evaluates a sequence of conditions and returns a value as soon as the first condition is met.
+
+**Standard Syntax:**
+```sql
+CASE 
+  WHEN condition_1 THEN result_1
+  WHEN condition_2 THEN result_2
+  ELSE default_result
+END AS new_column_name
+```
+
+**Practical Example: Dynamic Categorization**
+In data analysis, we often need to group continuous variables (like price) into segments (like 'Low', 'Medium', 'High').
+
+```sql
+SELECT 
+  product_name,
+  price,
+  CASE 
+    WHEN price < 20 THEN 'Budget'
+    WHEN price BETWEEN 20 AND 100 THEN 'Standard'
+    WHEN price > 100 THEN 'Premium'
+    ELSE 'Uncategorized'
+  END AS price_segment
+FROM `your_project.dataset.products`;
+```
+
+> **Note:** `CASE WHEN` is evaluated sequentially. The first `WHEN` that evaluates to `TRUE` will determine the result, and the engine will stop checking subsequent conditions for that row. This is why the order of your conditions matters!
