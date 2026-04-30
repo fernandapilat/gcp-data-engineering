@@ -232,3 +232,163 @@ bq rm -r -d belleza_verde_vendas_hom
 2. **Environment Hygiene:** In professional workflows, temporary or "Homologation" datasets are removed once testing is complete to prevent confusion and ensure only authorized production data remains active.
 
 > **Professional Note:** Deletion via CLI is immediate and permanent. Always double-check the dataset name and project context before executing the `rm` command.
+
+## 3. Creating Tables and Schema Design
+
+The BigQuery schema defines the structure of your data. Understanding data types is the foundation for building efficient tables, ensuring query performance, and avoiding errors during data ingestion.
+
+### 3.1 Data Types in BigQuery
+
+BigQuery supports a wide range of data types to handle massive datasets effectively. Selecting the correct type prevents precision loss and ensures compatibility between different data sources.
+
+#### 3.1.1 Numerical Data
+Used for calculations, financial records, and identifiers.
+
+*   **INT64:** 64-bit integer (no decimals). Ranges from -9,223,372,036,854,775,808 to +9,223,372,036,854,775,807. Ideal for primary IDs, counters, and Unix timestamps[cite: 1].
+*   **NUMERIC:** Fixed-precision decimal. Supports 38 digits of precision and 9 decimal places. Crucial for **financial data**, interest rates, and any calculation requiring exact decimal accuracy[cite: 1].
+*   **FLOAT64:** Double-precision floating point. Used for scientific or approximate values where minor rounding differences are acceptable (can represent non-numeric values like `NaN` or `+/-inf`)[cite: 1].
+
+
+
+#### 3.1.2 String and Binary Data
+*   **STRING:** Variable-length character data encoded in **UTF-8**. It has no fixed limit but is indirectly constrained by the total table row size[cite: 1].
+*   **BYTES:** Variable-length binary data. Used for objects that don't fit into standard text formats, such as images, compressed files, or encrypted data[cite: 1].
+
+#### 3.1.3 Temporal Data (Date and Time)
+Managing time correctly is vital for global operations and event tracking.
+
+*   **DATE:** Represents a calendar date (**YYYY-MM-DD**) without time or timezone information[cite: 1].
+*   **DATETIME:** Represents date and time (**YYYY-MM-DD HH:MM:SS**) but does **not** account for timezones[cite: 1].
+*   **TIME:** Represents the time of day (**HH:MM:SS**) independently of a specific date or timezone[cite: 1].
+*   **TIMESTAMP:** Represents date and time with **timezone awareness** (referenced to UTC). Essential for logging events in global applications[cite: 1].
+
+#### 3.1.4 Logic and Geography
+*   **BOOL:** Logical values (**TRUE** or **FALSE**). Used for flags and conditional filtering in SQL queries[cite: 1].
+*   **GEOGRAPHY:** Stores spatial information (points, lines, or polygons) based on the **WGS84** standard (standard GPS coordinate system)[cite: 1].
+
+
+
+#### 3.1.5 Complex and Semi-Structured Types
+BigQuery allows nested and repeated data structures, making it compatible with formats like JSON.
+
+*   **ARRAY <T>:** A collection of elements of the same type `T`. It is an ordered list where indexing starts at **0**[cite: 1].
+*   **STRUCT:** A container of ordered fields that can hold different data types, including other arrays or structs. This allows for representing complex, hierarchical data models[cite: 1].
+
+### 3.2 Understanding Table Structure
+
+In BigQuery, a table is the fundamental object used to organize data into a structured format of rows and columns, similar to traditional relational databases[cite: 1].
+
+#### 3.2.1 The Grid System
+* **Columns (Fields):** Represent the "Schema" of the table. While the number of rows can grow infinitely, columns are defined upfront to ensure structure[cite: 1].
+* **Rows (Records):** These represent individual data entries. BigQuery is optimized to scan billions of rows with high efficiency[cite: 1].
+* **Consistency Rule:** During queries or data manipulation, it is vital to maintain the same number of columns and ensure that the data types within each column remain consistent to prevent processing errors[cite: 1].
+
+#### 3.2.2 Why Schema Design is Fundamental
+Choosing the right design and data types directly impacts three areas:
+1. **Performance:** Correct types allow BigQuery's columnar engine to process data faster[cite: 1].
+2. **Accuracy:** Proper numerical types (like `NUMERIC` vs `FLOAT64`) prevent rounding errors in critical reports[cite: 1].
+3. **Data Integrity:** Strict typing ensures that data imported from external sources (like CSVs or APIs) matches the table's "contract," preventing corrupted datasets[cite: 1].
+
+#### 3.2.3 Schema Evolution
+BigQuery offers flexibility by allowing users to:
+* Define the schema at the moment of table creation[cite: 1].
+* Modify the number of columns even after the table already contains data, allowing the database to evolve with the business needs[cite: 1].
+
+### 3.2 Understanding Table Structure
+
+In BigQuery, a table is the fundamental object used to organize data into a structured format of rows and columns, similar to traditional relational databases[cite: 1].
+
+#### 3.2.1 The Grid System
+* **Columns (Fields):** Represent the "Schema" of the table. While the number of rows can grow infinitely, columns are defined upfront to ensure structure[cite: 1].
+* **Rows (Records):** These represent individual data entries. BigQuery is optimized to scan billions of rows with high efficiency[cite: 1].
+* **Consistency Rule:** During queries or data manipulation, it is vital to maintain the same number of columns and ensure that the data types within each column remain consistent to prevent processing errors[cite: 1].
+
+#### 3.2.2 Why Schema Design is Fundamental
+Choosing the right design and data types directly impacts three areas:
+1. **Performance:** Correct types allow BigQuery's columnar engine to process data faster[cite: 1].
+2. **Accuracy:** Proper numerical types (like `NUMERIC` vs `FLOAT64`) prevent rounding errors in critical reports[cite: 1].
+3. **Data Integrity:** Strict typing ensures that data imported from external sources (like CSVs or APIs) matches the table's "contract," preventing corrupted datasets[cite: 1].
+
+#### 3.2.3 Schema Evolution
+BigQuery offers flexibility by allowing users to:
+* Define the schema at the moment of table creation[cite: 1].
+* Modify the number of columns even after the table already contains data, allowing the database to evolve with the business needs[cite: 1].
+
+#### 3.2.4 The Absence of Primary and Foreign Keys
+Unlike traditional relational databases (OLTP), BigQuery does not enforce Primary or Foreign Keys.
+
+* **No Uniqueness Enforcement:** BigQuery will not stop you from inserting duplicate rows. There is no automatic "Primary Key" to prevent redundancy.[cite: 1]
+* **Design for Scale:** This lack of constraints allows BigQuery to achieve massive parallel processing speeds, as it doesn't need to validate key constraints during data ingestion.[cite: 1]
+* **Analytical Responsibility:** Data uniqueness and relationship integrity must be managed during the ETL/ELT process or through specific SQL techniques (like using `DISTINCT` or `ROW_NUMBER()`) rather than relying on database-level constraints.[cite: 1]
+
+### 3.3 Table Creation via SQL (DDL)
+
+After defining the schema requirements, we proceeded to create the physical tables in the `belleza_verde_vendas_hom` dataset using Data Definition Language (DDL).
+
+#### 3.3.1 Creating the 'Clientes' Table
+This table stores customer profile information, including their assigned seller.
+
+```sql
+CREATE TABLE curso-bigquery-490113.belleza_verde_vendas_hom.clientes
+( 
+  id_cliente INT64,
+  nome_cliente STRING,
+  email STRING,
+  localizacao STRING,
+  id_vendedor INT64,
+  cep STRING
+);
+```
+
+#### 3.3.2 Creating the 'Vendedores' Table
+A simplified table to manage the sales team.
+
+```sql
+CREATE TABLE curso-bigquery-490113.belleza_verde_vendas_hom.vendedores
+( 
+  id_vendedor INT64,
+  nome STRING
+);
+```
+
+#### 3.3.3 Technical Implementation Notes
+* **Data Types:** We utilized `INT64` for identifiers to ensure efficient indexing and `STRING` for text-based fields like names and emails[cite: 1].
+* **Schema Enforcement:** By defining the schema at creation, we ensure that any future data ingestion must comply with these specific types[cite: 1].
+* **Independence:** Note that while `id_vendedor` exists in both tables, no formal Foreign Key constraint was created, following BigQuery's high-performance architectural standards[cite: 1].
+
+### 3.4 Creating Tables via CLI (bq mk)
+
+Beyond SQL (DDL), tables can be created directly through the Google Cloud Shell using the `bq mk` command. This is highly efficient for quick operations or automation scripts.
+
+#### 3.4.1 Syntax Requirements
+When defining a schema inline via CLI, all fields must be part of a single string, separated by commas with no spaces[cite: 1].
+
+#### 3.4.2 Practical Example (The 'Fornecedores' Table)
+The following command creates a table for suppliers:
+
+```bash
+bq mk --table belleza_verde_vendas_hom.fornecedores id_fornecedor:INT64,nome:STRING,localizacao:STRING
+```
+
+#### 3.4.3 Troubleshooting: "Too many positional args"
+This error occurs when spaces are included within the schema definition string. The CLI interprets the space as the end of the schema argument and treats the subsequent fields as invalid extra arguments[cite: 1]. 
+
+* **Incorrect:** id_fornecedor:INT64 nome:STRING
+* **Correct:** id_fornecedor:INT64,nome:STRING
+
+![alt text](create_table_gshell.png)
+
+#### 3.4.4 Creating Tables with JSON Schemas
+
+For more complex tables, defining the schema directly in the command line can be cumbersome. The best practice is to use a JSON file to define the structure.
+
+```bash
+bq mk --table --schema=table_materias_primas.json belleza_verde_vendas_hom.materiasprimas
+```
+
+**Common Error: "Invalid field name"**
+This error occurs when the CLI fails to recognize the schema file and instead tries to parse the filename as a column name. 
+
+*   **Cause:** Mismatch between the filename in the directory and the filename typed in the command, or incorrect syntax after the `--schema=` flag[cite: 1].
+*   **Solution:** Ensure the JSON file exists in the current directory and that the command points exactly to its name without extra quotes or incorrect paths[cite: 1].
+

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "id_materia",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "nome",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "origem",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]
