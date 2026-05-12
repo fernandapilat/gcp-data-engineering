@@ -392,3 +392,192 @@ This error occurs when the CLI fails to recognize the schema file and instead tr
 *   **Cause:** Mismatch between the filename in the directory and the filename typed in the command, or incorrect syntax after the `--schema=` flag[cite: 1].
 *   **Solution:** Ensure the JSON file exists in the current directory and that the command points exactly to its name without extra quotes or incorrect paths[cite: 1].
 
+#### 3.4.5 Advanced Table Creation and Schema Management
+
+In this section, we explored different workflows to create and update table schemas, demonstrating the flexibility of BigQuery for both automated and manual tasks.
+
+##### A. Creating and then Editing
+Sometimes a table is created without an initial schema. We can retroactively apply one:
+1. **CLI Creation:** Created an empty table using `bq mk --table belleza_verde_vendas_hom.produtos`.
+2. **UI Update:** Accessed the BigQuery Studio, selected "Edit Schema," and used the "Edit as Text" option to paste a complete JSON definition.
+
+##### B. Direct UI Creation with JSON 
+A faster way to create tables via the console:
+1. Navigate to the dataset and select "Create Table".
+2. Choose "Empty Table" and provide the name.
+3. Use the "Edit as Text" toggle to paste the JSON schema directly during the creation process, ensuring the table is ready for use immediately.
+
+##### C. Manual Field Definition
+For a more granular and visual approach:
+1. Create a new "Empty Table".
+2. Instead of JSON, use the **(+) Add Field** button to manually define each column, for ex.:
+    * `id_produto` (INTEGER)
+    * `data` (DATE)
+    * `quantidade` (INTEGER)
+    * `preco` (FLOAT)
+
+#### Key Takeaway: Mode and Schema Evolution
+* **NULLABLE vs REPEATED:** We learned that "REPEATED" mode allows for arrays within a column, which is essential for nested data.
+* **Workflow Choice:** The choice between CLI, JSON, or Manual UI depends on the complexity of the schema and whether the process needs to be automated.
+
+## 4. Data and Schema Updates
+
+Updating table structures and records in BigQuery requires a different mindset than traditional relational databases due to its analytical nature.
+
+### 4.1 Updating Schemas without ALTER TABLE
+
+In many scenarios, direct schema modifications like renaming or deleting columns aren't supported via standard `ALTER TABLE` commands in BigQuery. To overcome this, we use the **Create or Replace Table (CTAS)** pattern.
+
+#### 4.1.1 The "Create or Replace" Pattern
+This method involves recreating the table by selecting data from the existing one and applying transformations during the selection process.
+
+**Example: Renaming a Column**
+In this example, we rename `nome_cliente` to `nome` while preserving all other data:
+
+```sql
+CREATE OR REPLACE TABLE curso-bigquery-490113.belleza_verde_vendas_hom.clientes AS
+SELECT 
+    id_cliente, 
+    nome_cliente AS nome, -- Renaming the column here
+    email, 
+    localizacao, 
+    id_vendedor, 
+    cep
+FROM 
+    curso-bigquery-490113.belleza_verde_vendas_hom.clientes;
+```
+
+#### 4.1.2 Why use this approach?
+* **Precision:** It allows for total control over the new schema.
+* **Atomicity:** Using `CREATE OR REPLACE` ensures the table is updated in a single operation, preventing data loss or downtime during the transition.
+* **Transformation:** Besides renaming, this is the ideal moment to change data types (using `CAST`) or filter out unwanted rows.
+
+### 4.2 Schema Evolution and Data Insertion
+
+While some structural changes require recreating the table, BigQuery supports direct schema evolution for adding new information without losing existing data.
+
+#### 4.2.1 Adding Columns with ALTER TABLE
+The `ALTER TABLE ADD COLUMN` statement allows you to add one or more columns to an existing table schema. This is a non-destructive operation, and existing rows will have a `NULL` value for the new column until updated.
+
+```sql
+ALTER TABLE curso-bigquery-490113.belleza_verde_vendas_hom.materiasprimas
+ADD COLUMN id_fornecedor INT64;
+```
+
+#### 4.2.2 Populating Tables with INSERT
+Once the schema is updated or created, we use the `INSERT INTO` command to add new records. In BigQuery, it is a best practice to specify the column names explicitly to ensure the data is mapped correctly.
+
+```sql
+INSERT INTO curso-bigquery-490113.belleza_verde_vendas_hom.materiasprimas
+(id_materia, nome, origem, id_fornecedor) 
+VALUES (1, 'Aloe Vera', 'Cultivo Orgânico', 1);
+```
+
+#### 4.2.3 Technical Notes
+* **Schema Flexibility:** Adding a column via `ALTER TABLE` is faster and more cost-effective than recreating the entire table when you only need to expand the data model.
+* **DML Performance:** `INSERT` operations are considered DML (Data Manipulation Language). While powerful for small updates, for massive data volumes, loading from files (CSV/JSON/Parquet) is generally preferred.
+
+### 4.3 Data Maintenance: Correcting and Cleaning Records
+
+Data integrity is an ongoing process. As analytical requirements evolve or entry errors occur, we must be able to modify or remove specific records using DML (Data Manipulation Language).
+
+#### 4.3.1 The UPDATE Statement (Correcting Data)
+To modify existing values, we use `UPDATE`. It is critical to always target the specific record using its unique identifier (Primary Key logic) to avoid changing the wrong data.
+
+**Case:** Changing 'João Almeida' to 'Joana Almeida' for ID 2.
+
+```sql
+UPDATE curso-bigquery-490113.belleza_verde_vendas_hom.vendedores
+SET nome = 'Joana Almeida' 
+WHERE id_vendedor = 2;
+```
+
+#### 4.3.2 The DELETE Statement (Removing Errors)
+When data is inserted incorrectly (e.g., a non-existent seller), we use `DELETE`.
+
+**Case:** Removing seller ID 5.
+
+```sql
+DELETE FROM curso-bigquery-490113.belleza_verde_vendas_hom.vendedores 
+WHERE id_vendedor = 5;
+```
+
+#### 4.3.3 Safeguards: Mandatory WHERE Clause
+BigQuery has a built-in safety mechanism: it prevents the execution of a `DELETE` statement without a `WHERE` clause to avoid accidental full-table wipes.
+
+* **Error:** `DELETE FROM table` (Returns an error in BigQuery).
+* **Workaround (Clear Table):** To intentionally delete all rows, we use a tautology (a condition that is always true), such as `WHERE 1 = 1`.
+
+```sql
+DELETE FROM curso-bigquery-490113.belleza_verde_vendas_hom.vendedores
+WHERE 1 = 1;
+```
+
+#### 4.3.4 Summary of Operations
+| Operation | Goal | Mandatory Clause |
+| :--- | :--- | :--- |
+| **UPDATE** | Modify existing cell values | `WHERE` (for precision) |
+| **DELETE** | Remove entire rows | `WHERE` (required by BigQuery) |
+| **1 = 1** | Wipe all data from a table | `WHERE` (satisfies safety check) |
+
+### 4.4 Loading Data from Staging Tables
+
+In BigQuery, it is common practice to load data into temporary tables (staging) before merging them into the final destination. Since BigQuery does not enforce Primary Keys, we must manually manage duplicates during these loads.
+
+#### 4.4.1 The INSERT INTO SELECT Pattern
+This command allows you to populate a table based on the results of a query from another table.
+
+```sql
+INSERT INTO `project.dataset.vendedores` (id_vendedor, nome)
+SELECT id_vendedor, nome 
+FROM `project.dataset.tmp_vendedores1`;
+```
+
+#### 4.4.2 The Challenge of Duplicates (No Primary Keys)
+Unlike traditional SQL databases, BigQuery will not block an `INSERT` if the ID already exists. If you load two different files containing the same `id_vendedor`, the table will show redundant rows, leading to inaccurate analysis.
+
+#### 4.4.3 Preventing Duplicates with NOT IN
+To ensure that only **new** records are added (avoiding duplicates but keeping existing data as the "truth"), we can use a subquery with the `NOT IN` operator.
+
+**Logic:** "Insert records from the source table ONLY IF their ID is not already present in the target table."
+
+```sql
+INSERT INTO `project.dataset.vendedores` (id_vendedor, nome)
+SELECT id_vendedor, nome 
+FROM `project.dataset.tmp_vendedores2`
+WHERE id_vendedor NOT IN (
+    SELECT id_vendedor FROM `project.dataset.vendedores`
+);
+```
+
+#### 4.4.4 Limitations of the NOT IN Approach
+While this method prevents duplicate IDs, it has a major drawback: **it cannot update existing information.** 
+* If a seller's name was corrected in the new file (e.g., from 'João' to 'Joana'), the `NOT IN` filter will simply ignore the record because the ID already exists, leaving the old, incorrect data in the table.
+
+### 4.5 Advanced Data Synchronization: The MERGE Command
+
+The `MERGE` statement is a powerful DML tool in BigQuery that allows for "Upserts" (Update + Insert). It solves the challenge of maintaining data integrity and accuracy in an environment without enforced primary keys.
+
+#### 4.5.1 The Logic of MERGE
+Instead of simply appending data, `MERGE` compares a **Source** table (e.g., a new daily file) with a **Target** table (your production data) based on a specific condition.
+
+* **WHEN MATCHED:** If the record exists (based on the ID), BigQuery performs an `UPDATE` to refresh the information.
+* **WHEN NOT MATCHED:** If the record is new, BigQuery performs an `INSERT`.
+
+#### 4.5.2 Practical Implementation
+In our scenario, we use `MERGE` to ensure that seller information is corrected (e.g., updating 'João' to 'Joana') and new sellers are added simultaneously.
+
+```sql
+MERGE INTO `curso-bigquery-490113.belleza_verde_vendas_hom.vendedores` alvo
+USING `curso-bigquery-490113.belleza_verde_vendas_hom.tmp_vendedores2` fonte
+ON alvo.id_vendedor = fonte.id_vendedor
+WHEN MATCHED THEN 
+    UPDATE SET id_vendedor = fonte.id_vendedor, nome = fonte.nome
+WHEN NOT MATCHED THEN
+    INSERT (id_vendedor, nome) VALUES (fonte.id_vendedor, fonte.nome);
+```
+
+#### 4.5.3 Why MERGE is Essential in BigQuery
+* **Idempotency:** You can run the same script multiple times without creating duplicates. The final state of the table remains consistent.
+* **Data Correction:** It automatically handles updates from source systems, ensuring the analytical table reflects the most recent "truth."
+* **Atomic Operation:** The entire process (checking, updating, and inserting) happens in a single transaction, maintaining database stability.
