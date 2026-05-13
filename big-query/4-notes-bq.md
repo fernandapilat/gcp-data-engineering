@@ -581,3 +581,73 @@ WHEN NOT MATCHED THEN
 * **Idempotency:** You can run the same script multiple times without creating duplicates. The final state of the table remains consistent.
 * **Data Correction:** It automatically handles updates from source systems, ensuring the analytical table reflects the most recent "truth."
 * **Atomic Operation:** The entire process (checking, updating, and inserting) happens in a single transaction, maintaining database stability.
+
+## 5. External Data Ingestion
+
+### 5.1 Manual Table Creation with Custom Layouts
+
+While BigQuery can auto-detect schemas, production files often come with non-standard layouts. In this section, we cover how to manually map an external CSV to a pre-defined schema.
+
+#### 5.1.1 Handling Non-Standard CSVs
+In this case study, we processed a file (`Vendedores3.csv`) with the following characteristics:
+* **Custom Headers:** The file used generic names (`coluna1`, `coluna2`).
+* **Custom Delimiters:** Instead of the standard comma (`,`), the file used a semicolon (`;`).
+* **Header Skipping:** The first row contained metadata that needed to be ignored.
+
+#### 5.1.2 Schema Mapping
+During the upload process, we manually defined the schema to override the file's internal names, ensuring the data lands in the correct destination format:
+
+| File Column | BigQuery Field Name | Data Type |
+| :--- | :--- | :--- |
+| coluna1 | id_vendedor | INTEGER |
+| coluna2 | nome | STRING |
+
+> **Note:** When defining a manual schema, the order of the fields in the BigQuery configuration must strictly match the physical order of the columns in the CSV file.
+
+#### 5.1.3 Advanced Configuration Settings
+To successfully parse the file, the following "Advanced Options" were applied:
+1. **Field Delimiter:** Set to `Custom` and specified as `;`.
+2. **Header Rows to Skip:** Set to `1` to bypass the generic header row.
+3. **Write Preference:** Since the table was recreated, the data was loaded into a clean structure.
+
+#### 5.1.4 Verification
+After the load job completed, we verified the integrity of the data using:
+* **Schema Tab:** To confirm the field names were mapped to `id_vendedor` and `nome`.
+* **Preview Tab:** To ensure the semicolon was correctly interpreted and the data aligned perfectly within the columns.
+
+### 5.2 Data Ingestion via Google Cloud Storage (GCS)
+
+In professional environments, files are rarely uploaded directly from a local machine. Instead, they are stored in **Google Cloud Storage (GCS)**, which offers high availability and scalability for large volumes of data.
+
+#### 5.2.1 Setting Up the Storage Infrastructure
+A **Bucket** is a container within Cloud Storage used to organize objects.
+1. **Creation:** A bucket named `curso_storage` was created.
+2. **Security:** Public access was blocked to ensure data privacy.
+3. **Upload:** The file `clients.csv` was uploaded directly to the bucket.
+
+#### 5.2.2 The "Headerless CSV" Challenge
+When a source file does not contain a header row (column names), BigQuery cannot auto-detect the schema. To solve this, we can dynamically extract the schema from an existing table using the CLI.
+
+**Dynamic Schema Extraction via Cloud Shell:**
+
+```bash
+bq show --schema --format=prettyjson belleza_verde_vendas_hom.clientes > /tmp/clients.json
+```
+
+This JSON file was then opened in the **Cloud Shell Editor** to be used as a template for the new table.
+
+#### 5.2.3 Table Recreation Workflow
+The final process involved replacing the old table with a clean version populated by the cloud-hosted file:
+
+* **Step 1:** The existing `clientes` table was deleted to avoid schema conflicts.
+* **Step 2:** A new table was created using "Google Cloud Storage" as the source.
+* **Step 3:** The file path was selected directly from the bucket (`gs://curso_storage/3688 - Video 5.2 - Clientes.csv`).
+* **Step 4:** In the **Schema** section, "Edit as text" was enabled, and the JSON content extracted earlier was pasted.
+* **Step 5:** The table was created, and data integrity was verified via the "Preview" tab.
+
+#### 5.2.4 Key Concepts Summary
+| Component | Function |
+| :--- | :--- |
+| **Cloud Storage** | Global service for cloud-based file storage. |
+| **Bucket** | A specific container or "interval" within Storage. |
+| **JSON Schema** | A technical definition used to map fields when the source lacks headers. |
