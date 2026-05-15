@@ -651,3 +651,155 @@ The final process involved replacing the old table with a clean version populate
 | **Cloud Storage** | Global service for cloud-based file storage. |
 | **Bucket** | A specific container or "interval" within Storage. |
 | **JSON Schema** | A technical definition used to map fields when the source lacks headers. |
+
+## 6. Data Pipeline Automation: Staging & Merging
+
+### 6.1 Orchestrating the Ingestion Workflow
+
+In professional data engineering, we create repeatable pipelines to ensure data consistency. This stage focuses on automating the flow between the Data Lake (Storage), the Staging area, and the Production tables.
+
+#### 6.1.1 The 4-Step Pipeline Logic
+To maintain a clean and updated environment, the process follows this strategic sequence:
+1. **Schema Preservation:** Export the staging table's schema as a JSON file to ensure consistent field mapping.
+2. **Staging Reset:** Execute a SQL script via CLI to wipe any existing data from the temporary table (`tmp_vendedores1`).
+3. **Cloud Loading:** Ingest new data from a GCS Bucket into the empty staging table using the saved JSON blueprint.
+4. **Final Synchronization:** Run the `MERGE` script to perform the "Upsert" (Update + Insert) into the production table.
+
+#### 6.1.2 Preparing Assets in Cloud Shell
+Automation requires moving logic from the UI to the command line. The following files must be present in the Cloud Shell environment:
+
+* **Schema File:** `tmp_vendedores1.json` (Generated via `bq show`).
+* **Cleanup Script:** `del_tmp_vendedores_1.sql` (Contains the `DELETE` statement).
+* **Sync Script:** `merge_vendedores.sql` (Contains the `MERGE` logic).
+
+#### 6.1.3 Executing SQL via Command Line
+Instead of running queries manually in the console, we use the `bq query` tool to execute stored `.sql` files. 
+
+**Execution Command:**
+bq query --use_legacy_sql=false < del_tmp_vendedores_1.sql
+
+> **Note:** The flag `--use_legacy_sql=false` is essential to ensure BigQuery processes the script using Standard SQL syntax.
+
+#### 6.1.4 Pipeline Components Summary
+| Component | File / Resource | Role |
+| :--- | :--- | :--- |
+| **Source Data** | `vendedores.csv` | Raw data hosted in the GCS Bucket. |
+| **Staging Table** | `tmp_vendedores1` | Temporary area used to validate and prepare data. |
+| **Target Table** | `vendedores` | The final production table (Source of Truth). |
+| **Control Logic** | `bq load` & `MERGE` | The commands that move and synchronize the data. |
+
+### 6.2 Executing the Automated Load via CLI
+
+This section demonstrates the practical execution of the data pipeline using the `bq` command-line tool. The goal is to move data from GCS to Staging and finally to Production.
+
+#### 6.2.1 Step 1: Loading from GCS to Staging
+We use the `bq load` command to ingest the CSV from the Cloud Storage bucket. Since the file lacks headers, we reference the previously saved JSON schema.
+
+**Command:**
+bq load --format=csv --skip_leading_rows=0 belleza_verde_vendas_hom.tmp_vendedores1 gs://curso_storage/vendedores.csv tmp_vendedores1.json
+
+* **--skip_leading_rows=0:** Used because the file starts immediately with data (no header).
+* **gs://...:** The URI (link) to the file inside the Google Cloud Storage bucket.
+* **tmp_vendedores1.json:** The mandatory schema "map" for headerless files.
+
+
+
+#### 6.2.2 Step 2: Running the Merge Operation
+Once the staging table (`tmp_vendedores1`) is populated, we execute the `MERGE` logic to synchronize it with the production table.
+
+**Command:**
+bq query --use_legacy_sql=false < merge_vendedores.sql
+
+#### 6.2.3 Handling File Updates (Incremental Logic)
+The beauty of this pipeline is how it handles new files:
+1. **Replacement:** When a new file (e.g., `Vendedores2.csv`) arrives in the Bucket, it must be renamed to the standard `vendedores.csv` to keep the script valid.
+2. **Upsert Logic:** * **Updates:** If an ID exists (e.g., João becomes Joana), the `MERGE` updates the record.
+   * **Insertions:** If an ID is new (e.g., ID 4), it is added to the table.
+   * **No Change:** If the data is identical, the table remains consistent without creating duplicates.
+
+#### 6.2.4 Pipeline Repeatability
+To process a new load, we simply repeat the cycle:
+1. **Clear Staging:** `bq query --use_legacy_sql=false < del_tmp_vendedores_1.sql`
+2. **Load New Data:** Repeat the `bq load` command.
+3. **Sync Tables:** Repeat the `bq query < merge_vendedores.sql` command.
+
+| Order | Action | Tool | Purpose |
+| :--- | :--- | :--- | :--- |
+| 1 | Cleanup | bq query | Reset the staging environment. |
+| 2 | Ingest | bq load | Move raw data from Storage to BigQuery. |
+| 3 | Merge | bq query | Apply updates and inserts to Production. |
+
+### 6.3 Understanding CLI Commands (Cheat Sheet)
+
+To master the command line, focus on the parameters rather than memorizing the whole string:
+
+| Parameter | Meaning | Why use it? |
+| :--- | :--- | :--- |
+| `bq query` | Run SQL | To execute `DELETE` or `MERGE` from a file. |
+| `bq load` | Ingest Data | To move data from Storage to BigQuery. |
+| `--use_legacy_sql=false` | Standard SQL | To ensure modern SQL syntax is accepted. |
+| `--skip_leading_rows=1` | Skip Header | Use `1` if CSV has titles, `0` if it's raw data. |
+| `gs://` | Cloud Storage URI | The "address" of your file in the cloud. |
+
+### 6.4 Script Execution and Pipeline Results
+
+After structuring the commands and understanding the batch logic, we execute the final pipeline in the Cloud Shell. This ensures the production table is updated through a single automated process.
+
+#### 6.4.1 Executing the Combined Command
+The script is pasted directly into the terminal, executing the sequence of cleanup, ingestion, and synchronization.
+
+```bash
+bq query --use_legacy_sql=false < del_tmp_vendedores_1.sql && sleep 10 && bq load --format=csv --skip_leading_rows=0 belleza_verde_vendas_hom.tmp_vendedores1 gs://curso_storage/vendedores.csv tmp_vendedores1.json && sleep 10 && bq query --use_legacy_sql=false < merge_vendedores.sql
+```
+
+#### 6.4.2 Case Study: Dynamic Updates (Vendedores 4 & 5)
+During the tests, we simulated the arrival of new data files by replacing the source in GCS:
+
+* **Vendedores4.csv:** Added new IDs (5 and 6) and updated existing records.
+* **Vendedores5.csv:** Performed complex updates (e.g., Marcos Aurélio changed to Marcos Moreira) and added further IDs (7, 8, and 9).
+
+
+
+#### 6.4.3 Final Table Status
+The `MERGE` operation ensures that even with repeated or slightly modified files, the `vendedores` table remains a "Single Source of Truth."
+
+| Operation | Result in Production Table |
+| :--- | :--- |
+| **New ID** | Record is inserted. |
+| **Existing ID (Modified)** | Record is updated with the new name/info. |
+| **Existing ID (Unchanged)** | No change is made (Idempotency). |
+
+**Success Criteria:** After the final execution, the production table displayed 9 unique vendors, reflecting all changes processed from the Storage bucket.
+
+### 6.5 Shell Scripting: Creating a One-Click Pipeline
+
+Instead of pasting long strings of code into the terminal, we can store our logic in an executable file. This is called a **Shell Script** (`.sh`).
+
+#### 6.5.1 The Cloud Shell Editor
+Using the built-in editor (a cloud-based IDE similar to VS Code), we created a new file to house our pipeline logic.
+* **Filename:** `executaVendedores.sh`
+* **Content:** All the commands linked by `&&` and `sleep 10` that we practiced previously.
+
+#### 6.5.2 Permissions: Making it Executable
+By default, a new text file doesn't have permission to "run" as a program. We use the Linux command `chmod` (Change Mode) to fix this.
+
+**Command:**
+chmod +x executaVendedores.sh
+
+* **+x:** Stands for "executable." 
+* **Verification:** Running `ls -l` shows the file permissions changed (usually the filename turns green in the terminal), indicating it is ready to run.
+
+#### 6.5.3 Running the Pipeline
+To trigger the entire process (Delete Staging -> Load GCS -> Merge), we simply use the prefix `./` followed by the filename:
+
+**Command:**
+./executaVendedores.sh
+
+#### 6.5.4 Orchestration & Scalability
+While we are running this manually, this script is the foundation for professional orchestration. In a production environment, tools like **Cloud Scheduler** or **Apache Airflow** (Google Cloud Composer) could trigger this script every morning at 8:00 AM without any human intervention.
+
+| Command | Action |
+| :--- | :--- |
+| `ls -l` | Lists files and their current permissions. |
+| `chmod +x` | Grants execution rights to a script. |
+| `./filename.sh` | Executes the script in the current directory. |
