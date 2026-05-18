@@ -156,4 +156,196 @@ To verify that the procedure calculated and appended the next sequential ID corr
 ```
 ---
 
+#### **2.3 Data Validation and Conditional Logic (Validação e Estruturas Condicionais)**
 
+To preserve data integrity, a procedure must validate that foreign keys exist before committing modifications to the database. In this session, we implement conditional branching (`IF / ELSE`) to verify if a product exists in the catalog before registering a sale.
+
+##### **New Procedural Concepts:**
+* **EXISTS():** A logical function that returns `TRUE` if a subquery returns at least one row, optimizing check performance.
+* **BOOL DEFAULT FALSE:** Initializes a boolean variable with a default state of `FALSE`.
+* **Conditional Branching:** Runs the `INSERT` block only `IF` the validation is true, otherwise (`ELSE`) it triggers an error message block.
+
+---
+
+##### **Step 1: Writing the Code (Production Standards)**
+
+```sql
+    CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda3` (
+      p_id_produto INT64, 
+      p_id_cliente INT64, 
+      p_data DATE, 
+      p_quantidade INT64, 
+      p_preco FLOAT64
+    )
+    BEGIN
+      -- Declaring internal variables for logic handling
+      DECLARE v_id_venda INT64;
+      DECLARE v_produto_existe BOOL DEFAULT FALSE;
+      DECLARE v_message_text STRING;
+
+      -- Checking if the product ID exists in the master products table
+      SET v_produto_existe = (
+        SELECT EXISTS (
+          SELECT 1 
+          FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+          WHERE id_produto = p_id_produto
+        )
+      );
+
+      -- Conditional flow execution
+      IF v_produto_existe THEN
+        BEGIN
+          -- Calculate automated incremented transaction ID
+          SET v_id_venda = (
+            SELECT IFNULL(MAX(id_venda), 0) + 1 
+            FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+          );
+
+          -- Execute data ingestion using official schema column names
+          INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+            (id_venda, id_produto, id_cliente, data, quantidade, preco)
+          VALUES 
+            (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
+        END;
+      ELSE
+        BEGIN
+          -- Fallback error handling if product is missing
+          SET v_message_text = "error: product dosen't exist";
+          SELECT v_message_text;
+        END;
+      END IF;
+    END;
+```
+---
+
+##### **Step 2: Testing Valid vs Invalid Ingestions**
+
+To test the validation mechanism, we run two different CALL statements.
+
+###### Test case A: Executing with a Valid Product ID
+If product ID 1 exists in the products database, the record will append cleanly:
+
+```sql
+    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda3`(1, 1, '2024-01-01', 10, 5.0);
+```
+
+###### **Test case B: Executing with an Invalid Product ID**
+If product ID 9999 does not exist, the insert is skipped and the custom error string is returned:
+
+```sql
+    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda3`(9999, 1, '2024-01-01', 10, 5.0);
+```
+---
+
+#### **2.4 Advanced Multi-Entity Validation & Return Flags**
+
+As pipeline architectures evolve, logging static error text messages becomes inefficient for automated applications. In this session, we upgrade the procedure to validate multiple target entities simultaneously (Products and Clients) and implement integer status flags (`0` or `1`) to return structured diagnostic matrices.
+
+##### Architectural Concepts Introduced:
+* **Multi-Entity Evaluation:** Splitting logic checks into separate `EXISTS` subqueries across different master tables.
+* **Boolean Conjunction (`AND`):** The conditional block `IF conditionA AND conditionB` requires both criteria to evaluate to `TRUE` before execution.
+* **Inline Functional IF:** The conditional function `IF(expression, true_value, false_value)` acts as a clean inline ternary operator to dynamically assign flag values.
+
+---
+
+##### **Step 1: Writing the Code (Production Standards)**
+
+```sql
+    CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda4` (
+      p_id_produto INT64, 
+      p_id_cliente INT64, 
+      p_data DATE, 
+      p_quantidade INT64, 
+      p_preco FLOAT64
+    )
+    BEGIN
+      -- Declaring internal tracking variables
+      DECLARE v_id_venda INT64;
+      DECLARE v_produto_existe BOOL DEFAULT FALSE;
+      DECLARE v_cliente_existe BOOL DEFAULT FALSE;
+      DECLARE v_id_retorno_produto INT64;
+      DECLARE v_id_retorno_cliente INT64;
+
+      -- Entity Check 1: Product Master Validation
+      SET v_produto_existe = (
+        SELECT EXISTS (
+          SELECT 1 
+          FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+          WHERE id_produto = p_id_produto
+        )
+      );
+
+      -- Entity Check 2: Client Master Validation
+      SET v_cliente_existe = (
+        SELECT EXISTS (
+          SELECT 1 
+          FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` 
+          WHERE id_cliente = p_id_cliente
+        )
+      );
+
+      -- Strict evaluation block
+      IF v_produto_existe AND v_cliente_existe THEN
+        BEGIN
+          -- Generate automated sequential ID
+          SET v_id_venda = (
+            SELECT IFNULL(MAX(id_venda), 0) + 1 
+            FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+          );
+
+          -- Ingest transaction data
+          INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+            (id_venda, id_produto, id_cliente, data, quantidade, preco)
+          VALUES 
+            (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
+
+          -- Success Flags
+          SET v_id_retorno_produto = 1;
+          SET v_id_retorno_cliente = 1;
+        END;
+      ELSE
+        BEGIN
+          -- Error Evaluation: Computing dynamic failure matrix paths
+          SET v_id_retorno_produto = IF(v_produto_existe, 1, 0);
+          SET v_id_retorno_cliente = IF(v_cliente_existe, 1, 0);
+        END;
+      END IF;
+
+      -- Return the operational status block
+      SELECT v_id_retorno_produto AS produto, v_id_retorno_cliente AS cliente;
+    END;
+```
+---
+
+##### **Step 2: Diagnostic Evaluation matrix (Test Scenarios)**
+
+We evaluate the dynamic return response dashboard by targeting multiple dataset records:
+
+###### **Scenario A: Both Entities Exist (Valid Entry)**
+Flags output 1, 1. Ingestion executes smoothly.
+
+```sql
+    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(1, 1, '2024-01-01', 10, 5.0);
+```
+
+###### **Scenario B: Invalid Product ID and Valid Client ID**
+Flags output 0, 1. Ingestion is bypassed.
+
+```sql
+    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(100, 1, '2024-01-01', 10, 5.0);
+```
+
+###### **Scenario C: Valid Product ID and Invalid Client ID**
+Flags output 1, 0. Ingestion is bypassed.
+
+```sql
+    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(1, 100, '2024-01-01', 10, 5.0);
+```
+
+###### **Scenario D: Both Entities Are Invalid**
+Flags output 0, 0. Ingestion is bypassed.
+
+```sql
+    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(100, 100, '2024-01-01', 10, 5.0);
+```
+---
