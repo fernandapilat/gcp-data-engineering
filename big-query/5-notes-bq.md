@@ -83,14 +83,14 @@ Instead of rewriting the entire INSERT INTO block for new transactions, we pass 
 
 ```sql
 -- Inserting transaction ID 10952 dynamically
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda1`(
-      10952, 
-      1, 
-      1, 
-      '2024-01-01', 
-      10, 
-      5.0
-    );
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda1`(
+  10952, 
+  1, 
+  1, 
+  '2024-01-01', 
+  10, 
+  5.0
+);
 ```
 ---
 
@@ -111,29 +111,29 @@ Instead of requiring the user to manually input a transaction ID, we can automat
 ##### **Step 1: Writing the Automated Procedure**
 
 ```sql
-    CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda2` (
-      p_id_produto INT64, 
-      p_id_cliente INT64, 
-      p_data DATE, 
-      p_quantidade INT64, 
-      p_preco FLOAT64
-    )
-    BEGIN
-      -- Declaring a local variable to store the calculated incrementing ID
-      DECLARE v_id_venda INT64;
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda2` (
+  p_id_produto INT64, 
+  p_id_cliente INT64, 
+  p_data DATE, 
+  p_quantidade INT64, 
+  p_preco FLOAT64
+)
+BEGIN
+  -- Declaring a local variable to store the calculated incrementing ID
+  DECLARE v_id_venda INT64;
 
-      -- Fetching the current maximum ID and adding 1
-      SET v_id_venda = (
-        SELECT IFNULL(MAX(id_venda), 0) + 1 
-        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
-      );
+  -- Fetching the current maximum ID and adding 1
+  SET v_id_venda = (
+    SELECT IFNULL(MAX(id_venda), 0) + 1 
+    FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+  );
 
-      -- Executing injection using the internally calculated ID
-      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
-        (id_venda, id_produto, id_cliente, data, quantidade, preco)
-      VALUES 
-        (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
-    END;
+  -- Executing injection using the internally calculated ID
+  INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+    (id_venda, id_produto, id_cliente, data, quantidade, preco)
+  VALUES 
+    (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
+END;
 ```
 
 ---
@@ -142,7 +142,7 @@ Instead of requiring the user to manually input a transaction ID, we can automat
 Notice that we no longer pass an explicit ID as the first argument, as the internal script logic calculates it automatically:
 
 ```sql
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda2`(1, 1, '2024-01-01', 10, 5);
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda2`(1, 1, '2024-01-01', 10, 5);
 ```
 
 ---
@@ -151,8 +151,8 @@ Notice that we no longer pass an explicit ID as the first argument, as the inter
 To verify that the procedure calculated and appended the next sequential ID correctly, we filter the table:
 
 ```sql
-    SELECT * FROM `curso-bigquery-490113.belleza_verde_vendas.vendas` 
-    WHERE data = '2024-01-01';
+SELECT * FROM `curso-bigquery-490113.belleza_verde_vendas.vendas` 
+WHERE data = '2024-01-01';
 ```
 ---
 
@@ -170,51 +170,51 @@ To preserve data integrity, a procedure must validate that foreign keys exist be
 ##### **Step 1: Writing the Code (Production Standards)**
 
 ```sql
-    CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda3` (
-      p_id_produto INT64, 
-      p_id_cliente INT64, 
-      p_data DATE, 
-      p_quantidade INT64, 
-      p_preco FLOAT64
-    )
-    BEGIN
-      -- Declaring internal variables for logic handling
-      DECLARE v_id_venda INT64;
-      DECLARE v_produto_existe BOOL DEFAULT FALSE;
-      DECLARE v_message_text STRING;
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda3` (
+  p_id_produto INT64, 
+  p_id_cliente INT64, 
+  p_data DATE, 
+  p_quantidade INT64, 
+  p_preco FLOAT64
+)
+BEGIN
+  -- Declaring internal variables for logic handling
+  DECLARE v_id_venda INT64;
+  DECLARE v_produto_existe BOOL DEFAULT FALSE;
+  DECLARE v_message_text STRING;
 
-      -- Checking if the product ID exists in the master products table
-      SET v_produto_existe = (
-        SELECT EXISTS (
-          SELECT 1 
-          FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
-          WHERE id_produto = p_id_produto
-        )
+  -- Checking if the product ID exists in the master products table
+  SET v_produto_existe = (
+    SELECT EXISTS (
+      SELECT 1 
+      FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+      WHERE id_produto = p_id_produto
+    )
+  );
+
+  -- Conditional flow execution
+  IF v_produto_existe THEN
+    BEGIN
+      -- Calculate automated incremented transaction ID
+      SET v_id_venda = (
+        SELECT IFNULL(MAX(id_venda), 0) + 1 
+        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
       );
 
-      -- Conditional flow execution
-      IF v_produto_existe THEN
-        BEGIN
-          -- Calculate automated incremented transaction ID
-          SET v_id_venda = (
-            SELECT IFNULL(MAX(id_venda), 0) + 1 
-            FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
-          );
-
-          -- Execute data ingestion using official schema column names
-          INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
-            (id_venda, id_produto, id_cliente, data, quantidade, preco)
-          VALUES 
-            (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
-        END;
-      ELSE
-        BEGIN
-          -- Fallback error handling if product is missing
-          SET v_message_text = "error: product dosen't exist";
-          SELECT v_message_text;
-        END;
-      END IF;
+      -- Execute data ingestion using official schema column names
+      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+        (id_venda, id_produto, id_cliente, data, quantidade, preco)
+      VALUES 
+        (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
     END;
+  ELSE
+    BEGIN
+      -- Fallback error handling if product is missing
+      SET v_message_text = "error: product dosen't exist";
+      SELECT v_message_text;
+    END;
+  END IF;
+END;
 ```
 ---
 
@@ -226,14 +226,14 @@ To test the validation mechanism, we run two different CALL statements.
 If product ID 1 exists in the products database, the record will append cleanly:
 
 ```sql
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda3`(1, 1, '2024-01-01', 10, 5.0);
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda3`(1, 1, '2024-01-01', 10, 5.0);
 ```
 
 ###### **Test case B: Executing with an Invalid Product ID**
 If product ID 9999 does not exist, the insert is skipped and the custom error string is returned:
 
 ```sql
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda3`(9999, 1, '2024-01-01', 10, 5.0);
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda3`(9999, 1, '2024-01-01', 10, 5.0);
 ```
 ---
 
@@ -251,69 +251,69 @@ As pipeline architectures evolve, logging static error text messages becomes ine
 ##### **Step 1: Writing the Code (Production Standards)**
 
 ```sql
-    CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda4` (
-      p_id_produto INT64, 
-      p_id_cliente INT64, 
-      p_data DATE, 
-      p_quantidade INT64, 
-      p_preco FLOAT64
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda4` (
+  p_id_produto INT64, 
+  p_id_cliente INT64, 
+  p_data DATE, 
+  p_quantidade INT64, 
+  p_preco FLOAT64
+)
+BEGIN
+  -- Declaring internal tracking variables
+  DECLARE v_id_venda INT64;
+  DECLARE v_produto_existe BOOL DEFAULT FALSE;
+  DECLARE v_cliente_existe BOOL DEFAULT FALSE;
+  DECLARE v_id_retorno_produto INT64;
+  DECLARE v_id_retorno_cliente INT64;
+
+  -- Entity Check 1: Product Master Validation
+  SET v_produto_existe = (
+    SELECT EXISTS (
+      SELECT 1 
+      FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+      WHERE id_produto = p_id_produto
     )
+  );
+
+  -- Entity Check 2: Client Master Validation
+  SET v_cliente_existe = (
+    SELECT EXISTS (
+      SELECT 1 
+      FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` 
+      WHERE id_cliente = p_id_cliente
+    )
+  );
+
+  -- Strict evaluation block
+  IF v_produto_existe AND v_cliente_existe THEN
     BEGIN
-      -- Declaring internal tracking variables
-      DECLARE v_id_venda INT64;
-      DECLARE v_produto_existe BOOL DEFAULT FALSE;
-      DECLARE v_cliente_existe BOOL DEFAULT FALSE;
-      DECLARE v_id_retorno_produto INT64;
-      DECLARE v_id_retorno_cliente INT64;
-
-      -- Entity Check 1: Product Master Validation
-      SET v_produto_existe = (
-        SELECT EXISTS (
-          SELECT 1 
-          FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
-          WHERE id_produto = p_id_produto
-        )
+      -- Generate automated sequential ID
+      SET v_id_venda = (
+        SELECT IFNULL(MAX(id_venda), 0) + 1 
+        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
       );
 
-      -- Entity Check 2: Client Master Validation
-      SET v_cliente_existe = (
-        SELECT EXISTS (
-          SELECT 1 
-          FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` 
-          WHERE id_cliente = p_id_cliente
-        )
-      );
+      -- Ingest transaction data
+      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+        (id_venda, id_produto, id_cliente, data, quantidade, preco)
+      VALUES 
+        (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
 
-      -- Strict evaluation block
-      IF v_produto_existe AND v_cliente_existe THEN
-        BEGIN
-          -- Generate automated sequential ID
-          SET v_id_venda = (
-            SELECT IFNULL(MAX(id_venda), 0) + 1 
-            FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
-          );
-
-          -- Ingest transaction data
-          INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
-            (id_venda, id_produto, id_cliente, data, quantidade, preco)
-          VALUES 
-            (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
-
-          -- Success Flags
-          SET v_id_retorno_produto = 1;
-          SET v_id_retorno_cliente = 1;
-        END;
-      ELSE
-        BEGIN
-          -- Error Evaluation: Computing dynamic failure matrix paths
-          SET v_id_retorno_produto = IF(v_produto_existe, 1, 0);
-          SET v_id_retorno_cliente = IF(v_cliente_existe, 1, 0);
-        END;
-      END IF;
-
-      -- Return the operational status block
-      SELECT v_id_retorno_produto AS produto, v_id_retorno_cliente AS cliente;
+      -- Success Flags
+      SET v_id_retorno_produto = 1;
+      SET v_id_retorno_cliente = 1;
     END;
+  ELSE
+    BEGIN
+      -- Error Evaluation: Computing dynamic failure matrix paths
+      SET v_id_retorno_produto = IF(v_produto_existe, 1, 0);
+      SET v_id_retorno_cliente = IF(v_cliente_existe, 1, 0);
+    END;
+  END IF;
+
+  -- Return the operational status block
+  SELECT v_id_retorno_produto AS produto, v_id_retorno_cliente AS cliente;
+END;
 ```
 ---
 
@@ -325,27 +325,196 @@ We evaluate the dynamic return response dashboard by targeting multiple dataset 
 Flags output 1, 1. Ingestion executes smoothly.
 
 ```sql
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(1, 1, '2024-01-01', 10, 5.0);
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(1, 1, '2024-01-01', 10, 5.0);
 ```
 
 ###### **Scenario B: Invalid Product ID and Valid Client ID**
 Flags output 0, 1. Ingestion is bypassed.
 
 ```sql
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(100, 1, '2024-01-01', 10, 5.0);
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(100, 1, '2024-01-01', 10, 5.0);
 ```
 
 ###### **Scenario C: Valid Product ID and Invalid Client ID**
 Flags output 1, 0. Ingestion is bypassed.
 
 ```sql
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(1, 100, '2024-01-01', 10, 5.0);
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(1, 100, '2024-01-01', 10, 5.0);
 ```
 
 ###### **Scenario D: Both Entities Are Invalid**
 Flags output 0, 0. Ingestion is bypassed.
 
 ```sql
-    CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(100, 100, '2024-01-01', 10, 5.0);
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(100, 100, '2024-01-01', 10, 5.0);
 ```
 ---
+
+#### **2.5 Modern Modularization using OUT Parameters**
+
+To decouple database execution from user interface messaging, we implement `OUT` parameters. This allows a procedure to export its execution status as variables back to the calling script, which then evaluates the metrics using external `IF / ELSEIF` logic.
+
+##### Architectural Benefits:
+* **Separation of Concerns:** The procedure focuses strictly on data validation and ingestion, while the calling environment handles message rendering.
+* **Reusable Outputs:** Output variables can be passed to other service nodes or systems without printing raw text on the console.
+
+---
+
+##### **Step 1: Writing the Decoupled Procedure**
+
+```sql
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.incluiVenda4` (
+  p_id_produto INT64, 
+  p_id_cliente INT64, 
+  p_data DATE, 
+  p_quantidade INT64, 
+  p_preco FLOAT64,
+  OUT p_id_retorno_produto INT64, -- Explicit output parameter
+  OUT p_id_retorno_cliente INT64  -- Explicit output parameter
+)
+BEGIN
+  -- Declaring internal evaluation states
+  DECLARE v_id_venda INT64;
+  DECLARE v_produto_existe BOOL DEFAULT FALSE;
+  DECLARE v_cliente_existe BOOL DEFAULT FALSE;
+
+  -- Validation routines
+  SET v_produto_existe = (
+    SELECT EXISTS (
+      SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` 
+      WHERE id_produto = p_id_produto
+    )
+  );
+  
+  SET v_cliente_existe = (
+    SELECT EXISTS (
+      SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` 
+      WHERE id_cliente = p_id_cliente
+    )
+  );
+
+  -- Core execution tree
+  IF v_produto_existe AND v_cliente_existe THEN
+    BEGIN
+      SET v_id_venda = (
+        SELECT IFNULL(MAX(id_venda), 0) + 1 
+        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+      );
+
+      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+        (id_venda, id_produto, id_cliente, data, quantidade, preco)
+      VALUES 
+        (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
+
+      -- Exposing success state to OUT variables
+      SET p_id_retorno_produto = 1;
+      SET p_id_retorno_cliente = 1;
+    END;
+  ELSE
+    BEGIN
+      -- Exposing specific failure matrices to OUT variables
+      SET p_id_retorno_produto = IF(v_produto_existe, 1, 0);
+      SET p_id_retorno_cliente = IF(v_cliente_existe, 1, 0);
+    END;
+  END IF;
+END;
+```
+---
+
+##### **Step 2: Calling the Procedure and Evaluating Output Flags**
+
+To capture the data exported by the `OUT` modifiers, we execute the procedure inside an active scripting session that interprets the response:
+
+```sql
+-- 1. Allocate external variable space to trap the OUT results
+DECLARE ext_retorno_produto INT64;
+DECLARE ext_retorno_cliente INT64;
+
+-- 2. Trigger execution passing invalid records to test fallback logic
+CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda4`(
+  100, 100, '2024-01-01', 10, 5.0, 
+  ext_retorno_produto, ext_retorno_cliente
+);
+
+-- 3. Dynamic Message Router (Conditional UI Feedback)
+IF ext_retorno_produto = 0 AND ext_retorno_cliente = 0 THEN
+  SELECT 'Identificador do PRODUTO e do CLIENTE inválidos' AS message;
+ELSEIF ext_retorno_produto = 1 AND ext_retorno_cliente = 0 THEN  
+  SELECT 'Identificador do CLIENTE inválido' AS message;
+ELSEIF ext_retorno_produto = 0 AND ext_retorno_cliente = 1 THEN  
+  SELECT 'Identificador do PRODUTO inválido' AS message;
+ELSE
+  SELECT 'Venda incluída com sucesso' AS message;
+END IF;
+```
+---
+
+#### **2.6 Practice Challenge: Internal Business Rule Validation (`inclui_qty`)**
+
+To enforce data quality at the ingestion level without database cross-referencing.
+
+##### **Architectural Benefits:**
+* **Input Isolation:** Validates arithmetic logic directly from parameters before executing any table queries.
+* **Proactive Data Quality:** Prevents corrupt or unrealistic metrics (e.g., negative amounts or extreme typos) from entering downstream analysis.
+
+---
+
+##### **Step 1: Writing the Validated Procedure**
+
+```sql
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.inclui_qty`(
+  p_id_produto INT64,
+  p_id_cliente INT64,
+  p_data DATE,
+  p_quantidade INT64,
+  p_preco FLOAT64
+)
+BEGIN
+
+  -- Declaring internal evaluation states
+  DECLARE v_id_venda INT64;
+  DECLARE v_quantidade_valida BOOL DEFAULT FALSE;
+  DECLARE v_message_text STRING;
+
+  -- Validating internal input boundaries (Accepts only 1 to 99 units)
+  SET v_quantidade_valida = (p_quantidade > 0 AND p_quantidade < 100);
+
+  -- Conditional execution branch based on validation results
+  IF v_quantidade_valida THEN
+    BEGIN
+      -- Calculates the next sequential ID (IFNULL fallback handles empty tables)
+      SET v_id_venda = (
+        SELECT IFNULL(MAX(id_venda), 0) + 1
+        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+      );
+
+      -- Commits clean operational record into the sales table
+      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+        (id_venda, id_produto, id_cliente, data, quantidade, preco)
+      VALUES
+        (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, p_preco);
+    END;
+  ELSE
+    BEGIN
+      -- Rejects insertion and triggers standard console warning message
+      SET v_message_text = 'error: the quantity need to be bigger than 0 and smaller than 100.';
+      SELECT v_message_text AS message;
+    END;
+  END IF;
+
+END;
+```
+
+---
+
+##### **Step 2: Testing and Homologation**
+
+**Scenario A:** Valid entry (Succeeds silently and populates next ID)
+```sql
+CALL `curso-bigquery-490113.belleza_verde_lib.inclui_qty`(1, 1, '2026-05-19', 50, 10.5);
+```
+**Scenario B:** Invalid entry (Aborts transaction and throws custom error message)
+
+```sql
+CALL `curso-bigquery-490113.belleza_verde_lib.inclui_qty`(1, 1, '2026-05-19', 150, 10.5);
+```
