@@ -8,7 +8,7 @@
 
 ## Course 5: Google BigQuery - Advanced Queries
 
-### 1. Stored Procedures (Procedimentos Armazenados)
+### **1. Stored Procedures**
 
 Standard SQL is excellent for querying data, but it is not natively a structured programming language. It lacks loops (`LOOP`, `WHILE`) and decision-making structures (`IF/ELSE`) to handle complex procedural logic. 
 
@@ -94,7 +94,7 @@ CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda1`(
 ```
 ---
 
-### 2. Scripting & Variables
+### **2. Scripting & Variables**
 
 BigQuery allows the use of procedural language features outside and inside Stored Procedures. By using scripting, we can declare local variables, perform dynamic calculations, and store query results to use in subsequent database operations.
 
@@ -241,7 +241,7 @@ CALL `curso-bigquery-490113.belleza_verde_lib.incluiVenda3`(9999, 1, '2024-01-01
 
 As pipeline architectures evolve, logging static error text messages becomes inefficient for automated applications. In this session, we upgrade the procedure to validate multiple target entities simultaneously (Products and Clients) and implement integer status flags (`0` or `1`) to return structured diagnostic matrices.
 
-##### Architectural Concepts Introduced:
+##### **Architectural Concepts Introduced:**
 * **Multi-Entity Evaluation:** Splitting logic checks into separate `EXISTS` subqueries across different master tables.
 * **Boolean Conjunction (`AND`):** The conditional block `IF conditionA AND conditionB` requires both criteria to evaluate to `TRUE` before execution.
 * **Inline Functional IF:** The conditional function `IF(expression, true_value, false_value)` acts as a clean inline ternary operator to dynamically assign flag values.
@@ -518,3 +518,168 @@ CALL `curso-bigquery-490113.belleza_verde_lib.inclui_qty`(1, 1, '2026-05-19', 50
 ```sql
 CALL `curso-bigquery-490113.belleza_verde_lib.inclui_qty`(1, 1, '2026-05-19', 150, 10.5);
 ```
+
+#### **2.7 Practice Challenge: Multi-Layer Business Rule and Data Integrity Validation (`register_sales`)**
+
+To enforce data quality at the ingestion level by cross-referencing operational input parameters against relational dimension tables, isolating execution paths, and dynamically compounding validation errors.
+
+##### **Architectural Benefits:**
+* **Relational Cross-Referencing:** Verifies entity existence (`produtos` and `clientes`) prior to committing transactions.
+* **Price Ingestion Security:** Automatically fetches active pricing directly from the catalog database, eliminating parameter tampering risks.
+* **Error Aggregation Framework:** Collects and isolates independent logical failures, appending error logs seamlessly via concatenation instead of short-circuiting execution.
+
+---
+
+##### **Step 1: Writing the Multi-Layer Validated Procedure**
+
+```sql
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.register_sales`(
+  p_id_produto INT64,
+  p_id_cliente INT64,
+  p_data DATE,
+  p_quantidade INT64
+)
+BEGIN
+
+  -- STEP 1: Memory variables allocation
+  DECLARE v_id_venda INT64;
+  DECLARE v_quantidade_valida BOOL DEFAULT FALSE;
+  DECLARE v_produto_existe BOOL DEFAULT FALSE;
+  DECLARE v_cliente_existe BOOL DEFAULT FALSE;
+  DECLARE v_preco_produto FLOAT64;
+  DECLARE v_message_text STRING;
+
+  -- STEP 2: Input Rules Validation
+  SET v_quantidade_valida = (p_quantidade > 0 AND p_quantidade < 100);
+
+  -- STEP 2.1: Check if product exists in database
+  SET v_produto_existe = (
+    SELECT EXISTS (SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` WHERE id_produto = p_id_produto)
+  );  
+  
+  -- STEP 2.2: Check if client exists in database
+  SET v_cliente_existe = (
+    SELECT EXISTS (SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` WHERE id_cliente = p_id_cliente)
+  ); 
+
+  -- STEP 2.3: Fetch the product price to validate or override input price
+  SET v_preco_produto = (
+    SELECT po.preco FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` AS po WHERE po.id_produto = p_id_produto
+  );
+
+  -- STEP 3: Conditional Decision Tree (IF / ELSE)
+  IF v_quantidade_valida AND v_produto_existe AND v_cliente_existe THEN
+    BEGIN
+      SET v_id_venda = (
+        SELECT IFNULL(MAX(id_venda), 0) + 1
+        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+      );
+
+      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+        (id_venda, id_produto, id_cliente, data, quantidade, preco)
+      VALUES
+        (v_id_venda, p_id_produto, p_id_cliente, p_data, p_quantidade, v_preco_produto);
+
+      SELECT 'success: sale registered successfully!' AS message;
+    END;
+  ELSE
+    BEGIN
+      -- STEP 4: Diagnosing the Specific Error
+      SET v_message_text = 'error: ';
+
+      IF NOT v_quantidade_valida THEN
+        SET v_message_text = CONCAT(v_message_text, '[invalid quantity] ');
+      END IF; 
+
+      IF NOT v_produto_existe THEN
+        SET v_message_text = CONCAT(v_message_text, '[product not found] ');
+      END IF; 
+
+      IF NOT v_cliente_existe THEN
+        SET v_message_text = CONCAT(v_message_text, '[client not found] ');
+      END IF; 
+
+      SELECT v_message_text AS message;
+    END;
+  END IF; 
+END;
+```
+
+---
+
+##### **Step 2: Testing and Homologation Scenarios**
+
+```sql
+-- Scenario A: Clean insertion (Valid rules, auto-assigns next ID and catalog price)
+CALL `curso-bigquery-490113.belleza_verde_lib.register_sales`(1, 1, '2026-05-20', 10);
+```
+
+```sql
+-- Scenario B: Compounded failure (Invalid quantity and non-existent entity IDs)
+CALL `curso-bigquery-490113.belleza_verde_lib.register_sales`(9999, 8888, '2026-05-20', 250);
+```
+
+### **3. User-Defined Functions (UDFs)**
+
+UDFs allow you to extend BigQuery SQL by creating custom functions using SQL expressions or JavaScript code. They are ideal for reusable calculations and complex logic that standard SQL functions cannot handle natively.
+
+#### **3.1 SQL vs. JavaScript UDFs**
+*   **SQL UDFs:** Optimized for performance; the BigQuery engine can optimize the logic directly.
+*   **JavaScript UDFs:** Allow complex logic (loops, regex, JSON parsing) using the V8 engine, but consume more slot resources.
+
+#### **3.2 Persistent vs. Temporary**
+*   **Temporary:** Defined within a single script/query. Expires when the session ends.
+*   **Persistent:** Stored in a dataset and can be reused by any authorized user across the project.
+
+---
+
+##### **Example: Creating a Persistent SQL UDF (Category Tiering)**
+
+```sql
+CREATE OR REPLACE FUNCTION `belleza_verde_lib.get_customer_tier`(revenue FLOAT64) 
+RETURNS STRING AS (
+  CASE 
+    WHEN revenue > 5000 THEN 'Platinum'
+    WHEN revenue > 2000 THEN 'Gold'
+    ELSE 'Silver'
+  END
+);
+```
+#### **3.3 Practice Challenge: Custom Mathematical Randomization Engine (`aleatorio`)**
+
+To engineer a persistent SQL-based custom function that overrides BigQuery's standard `RAND()` constraints, forcing the generation of bounded random integers within a strict user-defined dynamic range (`min` and `max`).
+
+##### **Architectural Benefits:**
+* **Constraint Overriding:** Translates continuous floating-point decimals ($0 \le x < 1$) into discrete, controlled integer distributions.
+* **Mathematical Precision:** Employs the `FLOOR` function to truncate trailing decimals, guaranteeing uniform probability boundaries.
+* **Global Reusability:** Functions as a centralized micro-service utility inside the `lib` dataset, eliminating the need to repeat heavy casting math across analytical dashboards.
+
+---
+
+##### **Step 1: Writing the Bounded Randomization Function**
+
+```sql
+CREATE OR REPLACE FUNCTION `curso-bigquery-490113.belleza_verde_lib.random_int`(
+  min INT64, 
+  max INT64
+) 
+RETURNS INT64 AS (
+  CAST(FLOOR((RAND() * (max - min + 1))) AS INT64) + min
+);
+```
+
+---
+
+##### **Step 2: Testing and Practical Implementation**
+
+```sql
+-- Scenario A: Simulating a dynamic marketing coupon between 5% and 30% for active clients
+SELECT 
+  id_cliente,
+  `curso-bigquery-490113.belleza_verde_lib.random_int`(5, 30) AS personalized_coupon_percentage
+FROM `curso-bigquery-490113.belleza_verde_vendas.clientes`
+LIMIT 5;
+```
+
+
+
