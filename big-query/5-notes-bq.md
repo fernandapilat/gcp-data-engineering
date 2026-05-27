@@ -681,5 +681,122 @@ FROM `curso-bigquery-490113.belleza_verde_vendas.clientes`
 LIMIT 5;
 ```
 
+#### **3.4 Operational Use Cases for Bounded Randomization in Data Engineering**
 
+While generating random boundaries may seem like a purely mathematical exercise, custom randomization engines are critical assets in modern data platforms. Below are the primary real-world architectures where the `aleatorio` UDF is applied:
 
+##### **1. Production Data Mocking (Environment De-identification)**
+Before launching a new analytical dashboard or staging environment, data engineers often need large volumes of transactional logs to test system latency and visualization layouts. 
+* **Application:** By using the UDF, you can synthesize thousands of fake orders, assigning random product IDs, customer IDs, and quantities to populate sandbox tables instantly without exposing sensitive or compliance-restricted live consumer records.
+
+##### **2. Business Gamification & Real-Time Dynamic Ingestion**
+Modern e-commerce applications use the database layer to securely compute promotional rewards at the exact moment a transaction is finalized (e.g., dynamic loyalty points or "spin-the-wheel" app features).
+* **Application:** Triggering the UDF directly within an ingestion query ensures that the reward assignment happens under strict database encryption and integrity rules, completely preventing malicious users from reverse-engineering the application's front-end code to manipulate or force maximum payouts.
+
+##### **3. Controlled A/B Testing & Data Sampling (Feature Flagging)**
+When data science teams want to test a new pricing algorithm, product recommendation model, or interface design, they must split user traffic into perfectly balanced, unbiased cohorts (Group A vs. Group B).
+* **Application:** By executing the random function over active customer lists, the engine tags each record with a dynamic integer identifier. If the UDF returns `1`, the customer routes to the control group; if it returns `2`, they route to the variant group, ensuring a uniform and statistically valid distribution.
+
+#### **3.5 Advanced Integration: Embedding UDFs Inside Stored Procedures**
+
+This section details the consolidation of your custom Persistent SQL UDF (random_int) directly inside the transactional orchestration logic of the Stored Procedure (register_sales). 
+
+Instead of relying on external scripts or hardcoded inputs, the procedure acts as a **fully automated transaction simulator**. It dynamically queries dimension table boundaries at runtime, feeds them into the UDF, and attempts to log randomized sales entries to generate synthetic mock data for downstream analytics training.
+
+##### Architectural Benefits:
+* **Encapsulated Automation:** The procedure becomes entirely self-contained, requiring only metadata fields (p_data, p_quantidade) to operate.
+* **Hybrid Structural Security:** Even though data generation is randomized, the embedded validation shield (v_produto_existe and v_cliente_existe) remains active to capture any reference gaps or dead IDs before writing to the database.
+* **Granular Traceability:** Success logs dynamically return the exact randomized IDs deployed inside the isolated execution block.
+
+---
+
+##### Production DDL Definition:
+
+```sql
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.register_sales`(
+  p_data DATE,
+  p_quantidade INT64
+)
+BEGIN
+
+  -- STEP 1: Memory variables allocation
+  DECLARE v_id_venda INT64;
+  DECLARE v_produto_existe BOOL DEFAULT FALSE;
+  DECLARE v_cliente_existe BOOL DEFAULT FALSE;
+  DECLARE v_preco_produto FLOAT64;
+  DECLARE v_message_text STRING;
+  DECLARE v_min_produto INT64;
+  DECLARE v_max_produto INT64;
+  DECLARE v_min_cliente INT64;
+  DECLARE v_max_cliente INT64;
+  DECLARE v_id_produto_final INT64;
+  DECLARE v_id_cliente_final INT64;
+
+  -- STEP 1.1: Generate Random Product ID directly using your UDF
+  SET v_min_produto = (SELECT MIN(id_produto) FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`);
+  SET v_max_produto = (SELECT MAX(id_produto) FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`);
+  SET v_id_produto_final = (`curso-bigquery-490113.belleza_verde_lib.random_int`(v_min_produto, v_max_produto));
+
+  -- STEP 1.2: Generate Random Client ID directly using your UDF
+  SET v_min_cliente = (SELECT MIN(id_cliente) FROM `curso-bigquery-490113.belleza_verde_vendas.clientes`);
+  SET v_max_cliente = (SELECT MAX(id_cliente) FROM `curso-bigquery-490113.belleza_verde_vendas.clientes`);
+  SET v_id_cliente_final = (`curso-bigquery-490113.belleza_verde_lib.random_int`(v_min_cliente, v_max_cliente));
+
+  -- STEP 2: Validation Shield
+  -- STEP 2.1: Check if product exists in database (validation shield)
+  SET v_produto_existe = (
+    SELECT EXISTS (SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` WHERE id_produto = v_id_produto_final)
+  );  
+  
+  -- STEP 2.2: Check if client exists in database (validation shield)
+  SET v_cliente_existe = (
+    SELECT EXISTS (SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` WHERE id_cliente = v_id_cliente_final)
+  ); 
+
+  -- STEP 2.3: Fetch the product price dynamically for the randomized product
+  SET v_preco_produto = (
+    SELECT po.preco FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` AS po WHERE po.id_produto = v_id_produto_final
+  );
+
+  -- STEP 3: Conditional Decision Tree (IF / ELSE)
+  IF v_produto_existe AND v_cliente_existe THEN
+    BEGIN
+      SET v_id_venda = (
+        SELECT IFNULL(MAX(id_venda), 0) + 1
+        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+      );
+
+      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+        (id_venda, id_produto, id_cliente, data, quantidade, preco)
+      VALUES
+        (v_id_venda, v_id_produto_final, v_id_cliente_final, p_data, p_quantidade, v_preco_produto);
+
+      SELECT CONCAT('success: sale registered successfully! [Product ID used: ', CAST(v_id_produto_final AS STRING), ' | Client ID used: ', CAST(v_id_cliente_final AS STRING), ']') AS message;
+    END;
+  ELSE
+    BEGIN
+      -- STEP 4: Diagnosing the Specific Error
+      SET v_message_text = 'error: ';
+
+      IF NOT v_produto_existe THEN
+        SET v_message_text = CONCAT(v_message_text, '[product not found: ', CAST(v_id_produto_final AS STRING), '] ');
+      END IF; 
+
+      IF NOT v_cliente_existe THEN
+        SET v_message_text = CONCAT(v_message_text, '[client not found: ', CAST(v_id_cliente_final AS STRING), '] ');
+      END IF; 
+
+      SELECT v_message_text AS message;
+    END;
+  END IF; 
+END;
+```
+---
+
+##### **Execution and Verification:**
+
+To execute a single simulation and dynamically append a randomized sale transaction to your training pipeline, issue the following standard query execution block:
+
+```sql
+CALL `curso-bigquery-490113.belleza_verde_lib.register_sales`('2026-05-26', 15);
+```
