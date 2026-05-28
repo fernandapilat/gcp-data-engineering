@@ -800,3 +800,189 @@ To execute a single simulation and dynamically append a randomized sale transact
 ```sql
 CALL `curso-bigquery-490113.belleza_verde_lib.register_sales`('2026-05-26', 15);
 ```
+
+### **4. Cost Enrichment and Analytical Calculations**
+
+Adding financial dimensions to your existing data models allows you to compute metrics directly inside BigQuery. By enriching structural reference tables with specific attributes, you can combine nested datasets with inventory values to dynamically calculate manufacturing costs and final prices.
+
+#### **4.1 Index-Driven Array Alignment and Relational Joins**
+* **Array Synchronization:** Using window functions like ROW_NUMBER() allows you to pair independent arrays line-by-line, creating an artificial relational structure between independent lists.
+* **Data Type Standardization:** When handling unstructured array values, explicit type conversions (such as CAST) are required to safely bridge the data into structured formats for relational INNER JOIN operations.
+* **Integrated Pipeline Logic:** This analytical model works in tandem with data generation structures, allowing you to extract cost valuations and total pricing metrics dynamically.
+
+---
+
+#### **4.2 Analytical Pricing Query DDL**
+
+```sql
+WITH indexed_products AS (
+  SELECT
+    id_produto,
+    nome,
+    categoria,
+    preco,
+    ARRAY(
+      SELECT AS STRUCT raw_mat, ROW_NUMBER() OVER() AS idx
+      FROM UNNEST(materiasprimas) AS raw_mat
+    ) AS raw_material_index,
+    ARRAY(
+      SELECT AS STRUCT dist, ROW_NUMBER() OVER() AS idx
+      FROM UNNEST(distribuicao) AS dist
+    ) AS distribution_index
+  FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p
+  WHERE id_produto = 1
+),
+
+product_distribution AS (
+  SELECT
+    mat.raw_mat AS material_id,
+    dst.dist AS material_distribution,
+    m.custo AS material_cost
+  FROM indexed_products AS ip
+  CROSS JOIN UNNEST(ip.raw_material_index) AS mat
+  CROSS JOIN UNNEST(ip.distribution_index) AS dst
+  INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.materiasprimas` AS m
+    ON CAST(mat.raw_mat AS INT64) = m.id_materia
+  WHERE mat.idx = dst.idx
+)
+
+SELECT
+  SUM(pd.material_distribution * pd.material_cost) AS total_price
+FROM product_distribution AS pd;
+```
+
+#### **4.3 End-to-End Orchestration: The Automated Sales Procedure**
+* **Dynamic Variable Ingestion:** Integrating the cost-calculation CTE inside an executable procedural block requires assigning query outputs directly into memory indicators using scoped scalar assignments.
+* **Fallback Pricing Logic:** By implementing standard conditional branches (IF/ELSE), the transaction logic evaluates the raw baseline product catalog price against the dynamically derived manufacturing cost (plus a predefined profit margin threshold), picking the optimal commercial value.
+* **Atomic Transaction Integrity:** Combining analytical array conversions, external UDF calls, and relational validations inside a single execution block ensures that database mutation events (INSERT statements) only persist when data integrity parameters are fully satisfied.
+
+---
+
+#### **Automated Transaction Execution DDL**
+
+```sql
+CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.register_sales`(
+  p_data DATE,
+  p_quantidade INT64
+)
+BEGIN
+
+  -- STEP 1: Memory variables allocation
+  DECLARE v_id_venda INT64;
+  DECLARE v_produto_existe BOOL DEFAULT FALSE;
+  DECLARE v_cliente_existe BOOL DEFAULT FALSE;
+  DECLARE v_preco_produto FLOAT64;
+
+  DECLARE v_preco_produto_tb FLOAT64;
+  DECLARE v_preco_produto_mp FLOAT64;
+  
+  DECLARE v_message_text STRING;
+  DECLARE v_min_produto INT64;
+  DECLARE v_max_produto INT64;
+  DECLARE v_min_cliente INT64;
+  DECLARE v_max_cliente INT64;
+  DECLARE v_id_produto_final INT64;
+  DECLARE v_id_cliente_final INT64;
+
+  -- STEP 1.1: Generate Random Product ID directly using your UDF
+  SET v_min_produto = (SELECT MIN(id_produto) FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`);
+  SET v_max_produto = (SELECT MAX(id_produto) FROM `curso-bigquery-490113.belleza_verde_vendas.produtos`);
+  SET v_id_produto_final = (`curso-bigquery-490113.belleza_verde_lib.random_int`(v_min_produto, v_max_produto));
+
+  -- STEP 1.2: Generate Random Client ID directly using your UDF
+  SET v_min_cliente = (SELECT MIN(id_cliente) FROM `curso-bigquery-490113.belleza_verde_vendas.clientes`);
+  SET v_max_cliente = (SELECT MAX(id_cliente) FROM `curso-bigquery-490113.belleza_verde_vendas.clientes`);
+  SET v_id_cliente_final = (`curso-bigquery-490113.belleza_verde_lib.random_int`(v_min_cliente, v_max_cliente));
+
+  -- STEP 2: Validation Shield
+  -- STEP 2.1: Check if product exists in database (validation shield)
+  SET v_produto_existe = (
+    SELECT EXISTS (SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` WHERE id_produto = v_id_produto_final)
+  );  
+  
+  -- STEP 2.2: Check if client exists in database (validation shield)
+  SET v_cliente_existe = (
+    SELECT EXISTS (SELECT 1 FROM `curso-bigquery-490113.belleza_verde_vendas.clientes` WHERE id_cliente = v_id_cliente_final)
+  ); 
+
+  -- STEP 2.3: Fetch the product price dynamically for the randomized product
+  SET v_preco_produto_tb = (
+    SELECT po.preco FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` AS po WHERE po.id_produto = v_id_produto_final
+  );
+
+  -- STEP 2.4: Execute financial cost CTE and encapsulate the scalar result using SET
+  SET v_preco_produto_mp = (
+    WITH indexed_products AS (
+      SELECT
+        id_produto,
+        ARRAY(
+          SELECT AS STRUCT CAST(raw_mat AS INT64) AS raw_mat, ROW_NUMBER() OVER() AS idx
+          FROM UNNEST(materiasprimas) AS raw_mat
+        ) AS raw_material_index,
+        ARRAY(
+          SELECT AS STRUCT CAST(dist AS FLOAT64) AS dist, ROW_NUMBER() OVER() AS idx
+          FROM UNNEST(distribuicao) AS dist
+        ) AS distribution_index
+      FROM `curso-bigquery-490113.belleza_verde_vendas.produtos` AS p
+      WHERE id_produto = v_id_produto_final
+    ), 
+    product_distribution AS (
+      SELECT
+        mat.raw_mat AS material_id,
+        dst.dist AS material_distribution,
+        m.custo AS material_cost
+      FROM indexed_products AS ip
+      CROSS JOIN UNNEST(ip.raw_material_index) AS mat
+      CROSS JOIN UNNEST(ip.distribution_index) AS dst
+      INNER JOIN `curso-bigquery-490113.belleza_verde_vendas.materiasprimas` AS m
+        ON mat.raw_mat = m.id_materia
+      WHERE mat.idx = dst.idx
+    )
+    SELECT IFNULL(SUM(CAST(pd.material_distribution AS FLOAT64) * CAST(pd.material_cost AS FLOAT64)), 0.0)
+    FROM product_distribution AS pd
+  );
+
+  -- STEP 2.5: Apply the predefined commercial profit margin
+  SET v_preco_produto_mp = v_preco_produto_mp + 2;
+
+  -- STEP 2.6: Evaluate fallback threshold and assign the highest value to the pricing variable
+  IF v_preco_produto_mp >= v_preco_produto_tb THEN
+  IF v_preco_produto_mp >= v_preco_produto_tb THEN 
+    SET v_preco_produto = v_preco_produto_mp;
+  ELSE 
+    SET v_preco_produto = v_preco_produto_tb;
+  END IF;
+
+  -- STEP 3: Conditional Decision Tree (IF / ELSE)
+  IF v_produto_existe AND v_cliente_existe THEN
+    BEGIN
+      SET v_id_venda = (
+        SELECT IFNULL(MAX(id_venda), 0) + 1
+        FROM `curso-bigquery-490113.belleza_verde_vendas.vendas`
+      );
+
+      INSERT INTO `curso-bigquery-490113.belleza_verde_vendas.vendas`
+        (id_venda, id_produto, id_cliente, data, quantidade, preco)
+      VALUES
+        (v_id_venda, v_id_produto_final, v_id_cliente_final, p_data, p_quantidade, v_preco_produto);
+
+      SELECT CONCAT('success: sale registered successfully! [Product ID used: ', CAST(v_id_produto_final AS STRING), ' | Price applied: ', CAST(v_preco_produto AS STRING), ']') AS message;
+    END;
+  ELSE
+    BEGIN
+      -- STEP 4: Diagnosing the Specific Error
+      SET v_message_text = 'error: ';
+
+      IF NOT v_produto_existe THEN
+        SET v_message_text = CONCAT(v_message_text, '[product not found: ', CAST(v_id_produto_final AS STRING), '] ');
+      END IF; 
+
+      IF NOT v_cliente_existe THEN
+        SET v_message_text = CONCAT(v_message_text, '[client not found: ', CAST(v_id_cliente_final AS STRING), '] ');
+      END IF; 
+
+      SELECT v_message_text AS message;
+    END;
+  END IF; 
+END;
+```  
