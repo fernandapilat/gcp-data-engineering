@@ -1,48 +1,49 @@
-# Cloud Infrastructure & API Management
+# Cloud Engineering & Foundations
 
-This directory documents the foundational cloud engineering layer of my portfolio. The focus here is on the architectural principles of Google Cloud Platform (GCP), specifically addressing resource management, serverless compute, and security protocols required to support data-intensive applications.
-
-The content is organized into core technical competencies followed by practical implementation projects and study documentation.
+This repository documents my progression through foundational and advanced infrastructure layers on Google Cloud Platform (GCP), covering virtualized environments, automated scaling, and cloud data analytics.
 
 ---
 
-## Technical Competencies
+## Core Cloud Pillars
 
-The following table categorizes the specific services and tools mastered during this stage of development:
+* **Taxonomy & Layering:** Understanding operational responsibilities across IaaS (Compute Engine), PaaS (Cloud Storage), and SaaS (BigQuery) environments.
+* **Immutability & SRE:** Eliminating configuration drift using custom *Golden Images* and Managed Instance Groups (MIG) with automated horizontal auto-scaling and self-healing.
+* **Decoupled Architecture:** Isolation of storage layers via Google Cloud Storage (GCS) and global traffic routing using Layer-7 HTTP Application Load Balancing.
 
-| Service Category | Description | Technologies & Tools |
+---
+
+## Directory Structure & Curriculum
+
+| Directory | Course / Topic | Core Implementation Objectives |
 | :--- | :--- | :--- |
-| **Compute & Serverless** | Deployment and orchestration of scalable applications. | App Engine, Cloud Run, Cloud Functions, Docker |
-| **API Management** | Governance, security, and exposure of internal services. | Cloud Endpoints, OpenAPI (Swagger), ESP |
-| **Infrastructure & CLI** | Automation and management of cloud resources. | Gcloud SDK, Deployment Manager, YAML |
-| **Security & IAM** | Identity management and permission hierarchy. | Service Accounts, IAM Roles, API Keys |
+| **`01-gcp-vms-scaling-lb/`** | Google Cloud: Virtual Machines, Scaling & Load Balancing | • Compute Engine VM configuration & deployment<br>• Custom image creation & Auto-scaling testing<br>• Automated content updates via cron/rsync<br>• Layer-7 Application Load Balancing<br>• Content Delivery Network (CDN) integration |
+| **`02-cloud-fundamentals-data/`** | Cloud Fundamentals: Building the Foundation | • Cloud computing principles and paradigms<br>• IaaS, PaaS, and SaaS differentiation<br>• Platform comparison (AWS, GCP, Azure)<br>• Object storage via Google Cloud Storage<br>• Cloud analytics with BigQuery & Colab<br>• Cost models and shared security matrices |
 
 ---
 
 ## Projects Overview
 
-The projects listed below demonstrate the practical application of the concepts mentioned above:
+### 1. High-Availability Web Fleet (`01-gcp-vms-scaling-lb/`)
+* **Objective:** Deploy a fault-tolerant, auto-scaling web server array.
+* **Implementation:** Configured automated asset synchronization between GCS buckets and local paths via `crontab`. Baked the environment state into a custom disk image deployed across a multi-zone MIG. Secured the fleet behind a Global Layer-7 HTTP Load Balancer with a static Anycast IP and active Health Checks, validating scalability up to 10 nodes using **Locust**.
 
-| Project Name | Objective | Technologies |
-| :--- | :--- | :--- |
-| **Secure API Gateway** | Implementation of an authentication and management layer for Python APIs. | Python 3.11, ESP, App Engine |
-| **Serverless Functions** | Development of event-driven and containerized data processing services. | Cloud Run, Docker |
-| **Cloud Infrastructure** | Automation of resource provisioning and IAM permission auditing. | IAM, Gcloud CLI, YAML |
+### 2. Cloud Data Pipeline Base (`02-cloud-fundamentals-data/`)
+* **Objective:** Ingest and analyze unstructured and structured datasets in the cloud.
+* **Implementation:** Structured secure object storage buckets inside GCS with cost-effective lifecycle rules. Evaluated the trade-offs between AWS, Azure, and GCP, and managed cloud-native data warehousing capabilities using **Google BigQuery** to run distributed analytical SQL queries integrated with **Google Colab** notebooks.
 
 ---
 
-## Study Documentation & Notes
+## Technical Competencies Summary
 
-This section contains detailed technical logs and study notes regarding the GCP ecosystem:
-
-* **Cloud Resource Hierarchy**: Detailed analysis of Organization, Folders, and Projects structure.
-* **Service Accounts & Security**: Best practices for non-human identity management and key rotation.
-* **Serverless Architecture**: Comparison between App Engine, Cloud Run, and Functions for different workloads.
+| Category | Technologies & Tools |
+| :--- | :--- |
+| **Compute & Networking** | Compute Engine (VMs), Managed Instance Groups (MIG), Global HTTP Application Load Balancer, Anycast IP, Health Checks |
+| **Data & Analytics** | BigQuery Data Warehouse, Google Cloud Storage (GCS), Google Colab |
+| **Automation & Testing** | Locust Concurrency Framework, Gcloud SDK CLI, Bash Scripting, Crontab Engines |
+| **Cloud Governance** | Cloud Deployment Models (IaaS, PaaS, SaaS), Billing Models, Cost Management, IAM Controls |
 
 ## References 
 
-- **Official Documentation:**  [Google Cloud Cloud Build & Serverless Documentation](https://cloud.google.com/docs) 
-
-
-
-
+- **Infrastructure Performance Testing:** [Locust Framework](https://docs.locust.io/)
+- **Vendor Cloud Documentation:** [Google Cloud Enterprise Documentation](https://cloud.google.com/docs)
+```
