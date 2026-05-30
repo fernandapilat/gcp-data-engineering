@@ -863,7 +863,8 @@ FROM product_distribution AS pd;
 ```sql
 CREATE OR REPLACE PROCEDURE `curso-bigquery-490113.belleza_verde_lib.register_sales`(
   p_data DATE,
-  p_quantidade INT64
+  p_quantidade INT64, 
+  margin INT64
 )
 BEGIN
 
@@ -942,16 +943,15 @@ BEGIN
     FROM product_distribution AS pd
   );
 
-  -- STEP 2.5: Apply the predefined commercial profit margin
-  SET v_preco_produto_mp = v_preco_produto_mp + 2;
-
-  -- STEP 2.6: Evaluate fallback threshold and assign the highest value to the pricing variable
-  IF v_preco_produto_mp >= v_preco_produto_tb THEN
+  -- STEP 2.5: Evaluate base threshold first (Compare raw cost vs raw table price)
   IF v_preco_produto_mp >= v_preco_produto_tb THEN 
     SET v_preco_produto = v_preco_produto_mp;
   ELSE 
     SET v_preco_produto = v_preco_produto_tb;
   END IF;
+
+  -- STEP 2.6: Apply the profit margin dynamically and round to 2 decimal places
+  SET v_preco_produto = ROUND(v_preco_produto * (1.0 + (CAST(margin AS FLOAT64) / 100.0)), 2);
 
   -- STEP 3: Conditional Decision Tree (IF / ELSE)
   IF v_produto_existe AND v_cliente_existe THEN
@@ -966,7 +966,7 @@ BEGIN
       VALUES
         (v_id_venda, v_id_produto_final, v_id_cliente_final, p_data, p_quantidade, v_preco_produto);
 
-      SELECT CONCAT('success: sale registered successfully! [Product ID used: ', CAST(v_id_produto_final AS STRING), ' | Price applied: ', CAST(v_preco_produto AS STRING), ']') AS message;
+      SELECT CONCAT('success: sale registered successfully! [Product ID used: ', CAST(v_id_produto_final AS STRING), ' | Price applied (with margin): ', CAST(v_preco_produto AS STRING), ']') AS message;
     END;
   ELSE
     BEGIN
@@ -986,3 +986,39 @@ BEGIN
   END IF; 
 END;
 ```  
+
+### 5. Best Practices: When to Use and Avoid FOR Loops in BigQuery
+
+While `FOR` loops are powerful tools for orchestration and automating procedural tasks, they should be used with caution in a cloud data warehouse like Google BigQuery. 
+
+#### 5.1 The Anti-Pattern: Row-by-Row DML Operations
+You should **avoid** using `FOR` loops to execute Data Manipulation Language (DML) commands—such as `DELETE`, `UPDATE`, or row-by-row `INSERT`—over large datasets. 
+
+BigQuery is a columnar, analytical database optimized for processing massive amounts of data in **bulk**. When you wrap a `DELETE` or `UPDATE` statement inside a `FOR` loop, you force the engine to process data line-by-line, resulting in:
+* **High Latency:** Opening and closing thousands of separate transactions instead of just one.
+* **Quota Exhaustion:** Risking hitting BigQuery's daily DML concurrency and mutation limits.
+* **Increased Costs:** Over-processing slots for repetitive, small queries.
+
+**The "Supermarket" Analogy:**
+Using a `FOR` loop to delete or insert rows one by one is like going to the supermarket to buy 10 items, but walking back and forth 10 times to bring only one item home on each trip. A bulk SQL statement (using `IN` or a `JOIN`) is like taking a shopping cart, loading all 10 items at once, and checking out in a single trip.
+
+#### 5.2 Correct Bulk Alternative (The Efficient Way)
+Instead of looping through dates or IDs to delete records, leverage set-based SQL logic using the `IN` clause:
+
+```sql
+-- ❌ BAD PRACTICE: Avoid looping to delete
+FOR record IN (SELECT date FROM `project.dataset.dates_to_remove`)
+DO
+  DELETE FROM `project.dataset.sales` WHERE data = record.date;
+END FOR;
+
+--  GOOD PRACTICE: Perform a single bulk operation
+DELETE FROM `project.dataset.sales`
+WHERE data IN (SELECT date FROM `project.dataset.dates_to_remove`);
+```
+
+#### 5.3 When is a FOR Loop Appropriate?
+`FOR` loops are highly welcomed when your goal is **Task Orchestration** or **Simulation**, rather than direct data manipulation:
+* **Data Generation:** Simulating historical business records to create random test datasets (mock data).
+* **Dynamic Exporting:** Looping through a list of table names to export each one into separate Google Cloud Storage buckets.
+* **Procedures Execution:** Calling distinct analytical pipelines sequentially for a limited number of high-profile clients.
