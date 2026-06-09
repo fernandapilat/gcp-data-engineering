@@ -240,3 +240,199 @@ In production environments, random names cause security and compliance failures.
 2.  **Geographic & Project Context:** Include the project name and data location for quick auditing.
 3.  **Pattern Blueprint:** `[Company]-[Project]-[Data-Type]-[Environment]`
     * *Example:* `olist-ecommerce-rawdata-dev`
+
+---
+
+---
+
+### 3.3 Connecting BigQuery to Cloud Storage
+
+#### a) Environment & Resource Hierarchy Setup
+* **Access Pathway:** Navigation Menu or Search Bar -> BigQuery.
+* **Dataset Creation:** Grouped resources by creating a logical dataset named olist_dataset under the global project ID (alura-465911), set to the US multi-region to match the bucket's location.
+* **Three-Tier Object Addressing:** BigQuery enforces a strict project.dataset.table hierarchy for identifying and querying targeted tables.
+
+#### b) Data Ingestion: Connecting BigQuery to GCS
+* **Source Configuration:** Created a new table within olist_dataset by selecting Google Cloud Storage as the source.
+* **File Pathway:** Navigated directly to the raw dataset bucket path: Fundamentos da Nuvem / Allist_eCommerce / Allist_Orders_Dataset.csv.
+* **Format Detection:** File format automatically identified and processed as CSV.
+* **Schema Definition:** Enabled 'Auto-detect' to automatically infer column names, data types, and nullability constraints.
+* **Partitioning & Cluster Settings:** Kept as non-partitioned for the initial ingestion layer.
+* **Table Identification:** Saved and structured as a managed external table named orders.
+
+#### c) Analytical Context
+* **Verification:** Validated schema constraints, data types, row counts, and creation metadata directly through the BigQuery table console.
+* **Business Application:** The orders table contains critical features for the core business problem (delivery delays), such as order_status, actual delivery timestamps, and estimated delivery dates, serving as the foundation for downstream analytics.
+
+---
+
+---
+
+## 4: Exploring Data with Python & GCP
+
+### 4.1 Integration: Connecting Google Colab to Cloud Storage
+
+#### a) Environment Authentication
+To programmatically access private data lake resources, Google Colab must be authenticated to impersonate an authorized IAM identity:
+* **Command 1:** Import the Colab auth module.
+  from google.colab import auth
+* **Command 2:** Trigger the OAuth2 authentication interface.
+  auth.authenticate_user()
+
+
+#### b) Google Cloud Storage SDK Ingestion Pipeline
+Once authenticated, the native `google-cloud-storage` library is used to instantiate a client and target unstructured or semi-structured data objects (Blobs):
+
+* **Step 1: Import the Storage SDK**
+  ```python
+  from google.cloud import storage
+  import json
+  ```
+
+* **Step 2: Environment Variables Setup**
+  ```python
+  project_id = 'alura-465911'
+  bucket_name = 'fundamentos_nuvem'
+  file_name = 'BR.json'
+  ```
+
+* **Step 3: Initializing SDK Architecture (Client -> Bucket -> Blob)**
+  ```python
+  # Establish secure connection to GCP Project
+  client_gcs = storage.Client
+  (project=project_id)
+
+  # Target the specific Data Lake Bucket
+  bucket = client_gcs.bucket(bucket_name)
+
+  # Point to the target semi-structured object
+  blob = bucket.blob(file_name)
+  ```
+
+* **Step 4: Stream Data to Memory & Parse JSON**
+  ```python
+  # Download object content directly into a string variable
+  file_content_str = blob.download_as_text()
+
+  # Parse the raw string into a native Python Dictionary / JSON Object
+  dados_feriados = json.loads(file_content_str)
+  ```
+
+---
+
+### 4.2 Querying BigQuery via Python (Hybrid Processing)
+
+#### a) Architectural Trade-off: SQL vs. Python
+Choosing where to process data is a critical cost and performance decision:
+* **When to use pure BigQuery (SQL):** Processing massive scales (Terabytes/Petabytes), building direct data sources for BI dashboards (Looker Studio, Power BI), and running fast ad-hoc queries where execution speed and compute scaling are critical.
+* **When to abstract to Python:** Creating automated pipelines, fetching data from external APIs, data enrichment, statistical computations, and advanced Machine Learning workflows.
+
+#### b) BigQuery SDK Query Pipeline
+Using the `google-cloud-bigquery` library, the Python environment sends the heavy analytical workload to be executed on Google's cloud infrastructure, returning only the final structured results:
+
+* **Step 1: Client Initialization**
+  from google.cloud import bigquery
+  client_bq = bigquery.Client(project=project_id)
+
+* **Step 2: Define and Dispatch the Analytical Job**
+  ```python
+  # Target explicit features to minimize slots consumption and processing costs
+  consulta_pedidos = """
+  SELECT order_id, order_status, order_purchase_timestamp,
+         order_estimated_delivery_date, order_delivered_customer_date
+  FROM `gcloud-course-498514.olist.orders`
+  """
+  query_job = client_bq.query(consulta_pedidos)
+  ```
+
+* **Step 3: In-Memory Conversion (To Pandas DataFrame)**
+  ```python
+  # Streams results into a local pandas DataFrame for advanced manipulation
+  pedidos = query_job.to_dataframe()
+  ```
+
+#### c) Practical Use Case: Delivery Delay Analysis
+To target the core business problem (logistics bottlenecks), the analytical workload uses Google Cloud's date functions to extract actual operational delays:
+
+* **Step 4: Execute SQL-based Date Transformation**
+  ```python
+  consulta_atrasos = """
+  SELECT order_id, order_estimated_delivery_date, order_delivered_customer_date,
+         DATE_DIFF(order_delivered_customer_date, order_estimated_delivery_date, DAY) AS atraso_medio_dias
+  FROM `gcloud-course-498514.olist.orders`
+  WHERE order_delivered_customer_date IS NOT NULL
+    AND order_estimated_delivery_date IS NOT NULL
+    AND order_delivered_customer_date > order_estimated_delivery_date
+  ORDER BY atraso_medio_dias DESC
+  """
+  
+  results = client_bq.query(consulta_atrasos)
+  df_atraso = results.to_dataframe()
+  ```
+
+#### d) Data Insights & Pipeline State
+* **Output Scale:** The process filtered and returned 7,827 unique records containing confirmed late shipments.
+* **Current State:** The data now lives inside the Python runtime environment memory (`df_atraso`). The next phase requires persisting this newly generated analytical layer back into the Cloud Data Stack (GCS or BigQuery) for team democratization and reporting.
+
+---
+
+### 4.3 Data Loading & The Complete ETL Lifecycle
+
+#### a) Writing Dataframes to BigQuery (Data Warehouse Storage)
+To persist the transformation layer into the Data Warehouse, the BigQuery SDK requires an explicit path, strict schema definition, and write configurations:
+
+* **Step 1: Destination Path & Schema Definition**
+  ```python
+  # Enforces data types and prevents schema drift during the load job
+  caminho = 'gcloud-course-498514.olist.pedido_atrasos'
+  
+  schema = [
+      bigquery.SchemaField("order_id", "STRING"),
+      bigquery.SchemaField("order_estimated_delivery_date", "TIMESTAMP"),
+      bigquery.SchemaField("order_delivered_customer_date", "TIMESTAMP"),
+      bigquery.SchemaField("atraso_medio_dias", "INTEGER"),
+  ] 
+  ```
+
+* **Step 2: Load Job Configuration**
+  ```python
+  # WRITE_APPEND appends rows to the table. Use WRITE_TRUNCATE if you want to overwrite it.
+  job_config = bigquery.LoadJobConfig(
+      schema=schema,
+      write_disposition="WRITE_APPEND"
+  )
+  ```
+
+* **Step 3: Executing the Load Job**
+  ```python
+  job = client_bq.load_table_from_dataframe(df_atraso, caminho, job_config=job_config)
+  job.result()  # Waits for the table upload to fully complete
+  print(f"Tabela {caminho} carregada com sucesso!")
+  ```
+
+#### b) Persisting Data to Cloud Storage (Data Lake Backup)
+Unlike Data Warehouses, the Cloud Storage Data Lake does not enforce a rigid schema, allowing files to be archived directly as structured or semi-structured blobs:
+
+* **Step 4: Local Serialization & Target Setup**
+  ```python
+  # Converts the in-memory dataframe into a physical local CSV file
+  df_atraso.to_csv('dados.csv', index=False)
+  
+  bucket_name = 'fundamentos_nuvem'
+  destino = 'dados/dados.csv'
+  ```
+
+* **Step 5: Cloud Storage Object Streaming**
+  ```python
+  bucket = client_gcs.get_bucket(bucket_name)
+  blob = bucket.blob(destino)
+  blob.upload_from_filename('dados.csv')
+  ```
+
+#### c) The Modern Cloud ETL Lifecycle Summary
+The completed pipeline mirrors professional enterprise data movements:
+1. **Extract (E):** Raw operational data was pulled from GCS and queried via BigQuery into the Python notebook environment.
+2. **Transform (T):** Applied date functions (`DATE_DIFF`) to calculate logistics bottlenecks, generating new insights.
+3. **Load (L):** Persisted the analytical output back into the ecosystem—structured for analytical engines (BigQuery) and archived as cold storage backup (GCS).
+
+
